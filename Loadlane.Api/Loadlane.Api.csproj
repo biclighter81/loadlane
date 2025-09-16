@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <ProjectReference Include="..\Loadlane.Application\Loadlane.Application.csproj" />
+    <ProjectReference Include="..\Loadlane.Domain\Loadlane.Domain.csproj" />
+    <ProjectReference Include="..\Loadlane.Infrastructure\Loadlane.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
