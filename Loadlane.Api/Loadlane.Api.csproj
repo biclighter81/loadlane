@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <ProjectReference Include="..\Loadlane.Application\Loadlane.Application.csproj" />
     <ProjectReference Include="..\Loadlane.Domain\Loadlane.Domain.csproj" />

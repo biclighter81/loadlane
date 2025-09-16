@@ -1,0 +1,5 @@
+FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
+WORKDIR /app
+COPY migration-bundle .
+RUN chmod +x migration-bundle
+ENTRYPOINT ["./migration-bundle"]
