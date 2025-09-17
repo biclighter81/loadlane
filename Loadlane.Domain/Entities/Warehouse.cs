@@ -20,10 +20,11 @@ public sealed class Warehouse
         Location = location;
     }
 
-    public void UpdateDetails(string organisation, string name)
+    public void UpdateDetails(string organisation, string name, Location location)
     {
         Organisation = organisation;
         Name = name;
+        Location = location;
     }
 
     public void AddGate(Gate gate)
