@@ -59,7 +59,7 @@ public sealed class OrderService : IOrderService
         var order = new Order(createOrderDto.ExtOrderNo, createOrderDto.Quantity, article);
 
         // Generate dynamic transport ID
-        var transportId = $"transp_{order.Transports.Count}";
+        var transportId = $"transp_{Guid.NewGuid().ToString().Substring(0, 8)}";
 
         // Create transport
         var transport = new Transport(transportId, order);
