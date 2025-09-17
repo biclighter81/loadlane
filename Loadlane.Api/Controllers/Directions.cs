@@ -1,4 +1,4 @@
-namespace Api.Controller;
+namespace Api.Controllers;
 
 using Application.Logging;
 using Application.Services;

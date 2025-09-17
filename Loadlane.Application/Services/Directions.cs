@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Application.Logging;
 using Application.Records;
@@ -34,9 +35,12 @@ public class DirectionsService
             return cached!;
 
         // Request GeoJSON geometry to avoid decoding
+        string LonLat(double lng, double lat) => $"{lng.ToString("G17", CultureInfo.InvariantCulture)},{lat.ToString("G17", CultureInfo.InvariantCulture)}";
+
+        var coordsString = $"{LonLat(a.lng, a.lat)};{LonLat(b.lng, b.lat)}";
         var url =
-            $"https://api.mapbox.com/directions/v5/mapbox.{_opts.Profile}/{a.lng},{a.lat};{b.lng},{b.lat}" +
-            $"?alternatives=false&geometries=geojson&overview=full&steps=false&access_token={_opts.AccessToken}";
+            $"https://api.mapbox.com/directions/v5/mapbox/{_opts.Profile}/{coordsString}" +
+            $"?alternatives=false&geometries=geojson&overview=full&steps=false&access_token={Uri.EscapeDataString(_opts.AccessToken)}";
 
         using var resp = await _httpClient.GetAsync(url);
         resp.EnsureSuccessStatusCode();
