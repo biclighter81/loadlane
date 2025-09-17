@@ -17,6 +17,18 @@ export function WarehouseListPage() {
         await createWarehouse(data);
     };
 
+    // Group warehouses by organisation
+    const groupedWarehouses = warehouses.reduce((groups, warehouse) => {
+        const org = warehouse.organisation;
+        if (!groups[org]) {
+            groups[org] = [];
+        }
+        groups[org].push(warehouse);
+        return groups;
+    }, {} as Record<string, WarehouseResponse[]>);
+
+    const organisations = Object.keys(groupedWarehouses).sort();
+
     if (loading) {
         return (
             <div className="container mx-auto p-6">
@@ -75,13 +87,30 @@ export function WarehouseListPage() {
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {warehouses.map((warehouse) => (
-                        <WarehouseCard
-                            key={warehouse.id}
-                            warehouse={warehouse}
-                            onView={(id) => navigate(`/warehouses/${id}`)}
-                        />
+                <div className="space-y-8">
+                    {organisations.map((organisation) => (
+                        <div key={organisation} className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-2xl font-bold tracking-tight">{organisation}</h2>
+                                    <p className="text-muted-foreground">
+                                        {groupedWarehouses[organisation].length} warehouse{groupedWarehouses[organisation].length !== 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                                <Badge variant="outline" className="text-sm">
+                                    {groupedWarehouses[organisation].length}
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-12 md:grid-cols-2 lg:grid-cols-2 gap-2">
+                                {groupedWarehouses[organisation].map((warehouse) => (
+                                    <WarehouseCard
+                                        key={warehouse.id}
+                                        warehouse={warehouse}
+                                        onView={(id) => navigate(`/warehouses/${id}`)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}
@@ -108,12 +137,9 @@ function WarehouseCard({ warehouse, onView }: WarehouseCardProps) {
     return (
         <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                        <Building2 className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">{warehouse.name}</CardTitle>
-                    </div>
-                    <Badge variant="outline">{warehouse.organisation}</Badge>
+                <div className="flex items-center space-x-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">{warehouse.name}</CardTitle>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
