@@ -36,9 +36,9 @@ public class DirectionsService
         var cachedJson = await _cache.GetStringAsync(key);
         if (!string.IsNullOrEmpty(cachedJson))
         {
-            var cachedRoute = JsonSerializer.Deserialize<Route>(cachedJson);
-            if (cachedRoute != null)
-                return cachedRoute;
+            var deserializedRoute = JsonSerializer.Deserialize<CachedRoute>(cachedJson);
+            if (deserializedRoute != null)
+                return deserializedRoute.ToRoute();
         }
 
         // Request GeoJSON geometry to avoid decoding
@@ -67,7 +67,8 @@ public class DirectionsService
         var route = new Route(coords, distance, duration);
 
         // Cache for an hour (tune as needed) - serialize to JSON for Redis
-        var serializedRoute = JsonSerializer.Serialize(route);
+        var cachedRoute = CachedRoute.FromRoute(route);
+        var serializedRoute = JsonSerializer.Serialize(cachedRoute);
         var cacheOptions = new DistributedCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)

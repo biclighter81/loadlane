@@ -8,12 +8,14 @@ public class TripHub : Hub
 {
     private readonly DirectionsService _directions;
     private readonly RouteSampler _sampler;
+    private readonly IHubContext<TripHub> _hubContext;
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _runs = new();
 
-    public TripHub(DirectionsService directions, RouteSampler sampler)
+    public TripHub(DirectionsService directions, RouteSampler sampler, IHubContext<TripHub> hubContext)
     {
         _directions = directions;
         _sampler = sampler;
+        _hubContext = hubContext;
     }
 
     // Client calls this to start a simulated trip
@@ -36,6 +38,9 @@ public class TripHub : Hub
         var cts = new CancellationTokenSource();
         _runs[Context.ConnectionId] = cts;
 
+        // Capture the connection ID and client reference before the background task
+        var connectionId = Context.ConnectionId;
+
         // stream points at fixed tick
         var tick = TimeSpan.FromMilliseconds(500); // 2 Hz updates; change as needed
         _ = Task.Run(async () =>
@@ -46,12 +51,17 @@ public class TripHub : Hub
                 while (!cts.IsCancellationRequested && i < samples.Count)
                 {
                     var p = samples[i++];
-                    await Clients.Caller.SendAsync("Position", new { lng = p.lng, lat = p.lat });
+                    await _hubContext.Clients.Client(connectionId).SendAsync("Position", new { lng = p.lng, lat = p.lat });
                     await Task.Delay(tick, cts.Token);
                 }
-                await Clients.Caller.SendAsync("TripCompleted");
+                await _hubContext.Clients.Client(connectionId).SendAsync("TripCompleted");
             }
             catch (TaskCanceledException) { /* ignore */ }
+            catch (Exception ex)
+            {
+                // Log the exception if needed, connection might have been closed
+                Console.WriteLine($"Trip streaming error for {connectionId}: {ex.Message}");
+            }
         }, cts.Token);
     }
 
