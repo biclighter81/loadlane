@@ -43,10 +43,10 @@ export default function WarehouseYardPage() {
     return (
 
         <div className="w-full h-full">
-            <h1 className="text-2xl font-bold mb-4">{warehouse?.name}</h1>
       <TruckDocks
         docks={staticDocks}
         trucks={staticTrucks}
+        warehouseText={warehouse?.name}
         onDockStatusChange={(dockId, newStatus) => {
           console.log(`Dock ${dockId} status changed to: ${newStatus}`);
         }}

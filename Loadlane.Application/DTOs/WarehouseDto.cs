@@ -15,12 +15,12 @@ public sealed record UpdateWarehouseDto(
 );
 
 public sealed record CreateGateDto(
-    string Number,
+    int Number,
     string? Description = null
 );
 
 public sealed record UpdateGateDto(
-    string Number,
+    int Number,
     string? Description = null,
     bool IsActive = true
 );
@@ -37,7 +37,7 @@ public sealed record WarehouseResponseDto(
 
 public sealed record GateResponseDto(
     Guid Id,
-    string Number,
+    int Number,
     string? Description,
     bool IsActive,
     WarehouseResponseDto? Warehouse,

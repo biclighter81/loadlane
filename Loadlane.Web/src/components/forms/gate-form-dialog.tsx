@@ -26,7 +26,7 @@ import { Loader2 } from 'lucide-react';
 import type { CreateGateRequest, UpdateGateRequest, GateResponse } from '../../types/warehouse';
 
 const gateSchema = yup.object({
-  number: yup.string().required('Gate number is required').min(1, 'Gate number must be at least 1 character'),
+  number: yup.number().required('Gate number is required'),
   description: yup.string().optional(),
   isActive: yup.boolean().default(true),
 });
@@ -47,7 +47,7 @@ export function GateFormDialog({ open, onClose, onSubmit, gate, mode }: GateForm
   const form = useForm<GateFormData>({
     resolver: yupResolver(gateSchema),
     defaultValues: {
-      number: gate?.number || '',
+      number: gate?.number || 1,
       description: gate?.description || '',
       isActive: gate?.isActive ?? true,
     },
@@ -64,7 +64,7 @@ export function GateFormDialog({ open, onClose, onSubmit, gate, mode }: GateForm
         });
       } else {
         form.reset({
-          number: '',
+          number: 1,
           description: '',
           isActive: true,
         });
@@ -117,7 +117,7 @@ export function GateFormDialog({ open, onClose, onSubmit, gate, mode }: GateForm
                 <FormItem>
                   <FormLabel>Gate Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter gate number (e.g., A1, B2)" {...field} />
+                    <Input type='number' placeholder="Enter gate number (e.g., 1, 2)" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

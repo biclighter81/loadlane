@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Box } from '@react-three/drei';
+import { OrbitControls, Box, Text } from '@react-three/drei';
 import type { TruckDocksProps } from '../types/docking';
 import { DockStatus } from '../types/docking';
 import { calculateDockPositions, calculateHallWidth } from '../utils';
 import Dock from './Dock';
 import Truck from './Truck';
 
-const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTrucks = [], onTruckRemovalComplete, onDockStatusChange, onTruckClick }) => {
+const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTrucks = [], warehouseText = "WAREHOUSE", onTruckRemovalComplete, onDockStatusChange, onTruckClick }) => {
   const [selectedDockId, setSelectedDockId] = useState<number | null>(null);
 
   // Berechne die Dock-Positionen und Hallenbreite mit Utility-Funktionen
@@ -58,30 +58,35 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
         />
         
         {/* Boden/Asphalt */}
-        <Box args={[hallWidth + 20, 0.1, 30]} position={[0, -0.5, 0]} receiveShadow>
+        <Box args={[hallWidth + 20, 0.1, 30]} position={[0, 0, 0]} receiveShadow>
           <meshStandardMaterial color="#a9a9a9" />
         </Box>
         
         {/* Halle - Hauptgebäude */}
-        <Box args={[hallWidth, 8, 6]} position={[0, 4, -12]} castShadow receiveShadow>
-          <meshStandardMaterial color="#7B68EE" />
+        <Box args={[hallWidth, 13, 6]} position={[0, 4, -12]} castShadow receiveShadow>
+          <meshStandardMaterial color="#351dbeff" />
         </Box>
+
+        {/* Halle - Text */}
+        <Text position={[0, 8.75, -8.9]} fontSize={1.5} color="#FFFFFF" anchorX="center" anchorY="middle">
+          {warehouseText}
+        </Text>
         
         {/* Halle - Dach */}
-        <Box args={[hallWidth + 2, 0.3, 8]} position={[0, 8.5, -12]} castShadow>
+        <Box args={[hallWidth + 2, 0.3, 8]} position={[0, 10.5, -12]} castShadow>
           <meshStandardMaterial color="#4B0082" />
         </Box>
         
         {/* Halle - Seitenwände */}
-        <Box args={[0.3, 8, 6]} position={[-hallWidth/2 - 0.15, 4, -12]} castShadow>
+        <Box args={[0.3, 13, 6]} position={[-hallWidth/2 - 0.15, 4, -12]} castShadow>
           <meshStandardMaterial color="#6A5ACD" />
         </Box>
-        <Box args={[0.3, 8, 6]} position={[hallWidth/2 + 0.15, 4, -12]} castShadow>
+        <Box args={[0.3, 13, 6]} position={[hallWidth/2 + 0.15, 4, -12]} castShadow>
           <meshStandardMaterial color="#6A5ACD" />
         </Box>
         
         {/* Halle - Rückwand */}
-        <Box args={[hallWidth, 8, 0.3]} position={[0, 4, -15]} castShadow>
+        <Box args={[hallWidth, 13, 0.3]} position={[0, 4, -15]} castShadow>
           <meshStandardMaterial color="#6A5ACD" />
         </Box>
         

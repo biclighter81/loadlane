@@ -31,19 +31,19 @@ export interface UpdateWarehouseRequest {
 }
 
 export interface CreateGateRequest {
-  number: string;
+  number: number;
   description?: string;
 }
 
 export interface UpdateGateRequest {
-  number: string;
+  number: number;
   description?: string;
   isActive?: boolean;
 }
 
 export interface GateResponse {
   id: string;
-  number: string;
+  number: number;
   description?: string;
   isActive: boolean;
   warehouse?: WarehouseResponse;
@@ -52,7 +52,7 @@ export interface GateResponse {
 
 export interface GateSimpleResponse {
   id: string;
-  number: string;
+  number: number;
   description?: string;
   isActive: boolean;
   createdUtc: string;
