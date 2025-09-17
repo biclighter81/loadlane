@@ -12,23 +12,16 @@ import {
     X,
     Eye,
     MapPin,
+    Gauge,
 } from 'lucide-react';
 import type { Warehouse } from '../types/map';
+import { useWarehouses } from '../hooks/useWarehouse';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
 import { OrderSearchPanel } from './OrderSearchPanel';
 
 // Mapbox access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
-
-const warehouses: Warehouse[] = [
-    { id: 1, name: "Berlin Central Hub", lng: 13.4050, lat: 52.5200, type: "Distribution", capacity: 10000, description: "Main distribution center in Berlin city center" },
-    { id: 2, name: "Spandau Logistics", lng: 13.1948, lat: 52.5370, type: "Storage", capacity: 15000, description: "Large storage facility in Spandau district" },
-    { id: 3, name: "Tempelhof Warehouse", lng: 13.3851, lat: 52.4728, type: "Fulfillment", capacity: 8000, description: "E-commerce fulfillment center near former airport" },
-    { id: 4, name: "Marzahn CrossDock", lng: 13.5435, lat: 52.5433, type: "CrossDock", capacity: 5000, description: "Cross-docking facility in eastern Berlin" },
-    { id: 5, name: "Reinickendorf Storage", lng: 13.3282, lat: 52.5836, type: "Storage", capacity: 12000, description: "Cold storage and general warehousing" },
-    { id: 6, name: "Lichtenberg Hub", lng: 13.5034, lat: 52.5158, type: "Distribution", capacity: 9000, description: "Regional distribution hub with rail access" }
-];
 
 const getWarehouseIcon = (type: Warehouse['type']) => {
     switch (type) {
@@ -80,8 +73,23 @@ export function MapComponent() {
     const transportMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
     const transportRoutes = useRef<Map<string, any>>(new Map()); // Store route data for each transport
     const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
+    const [simulationSpeed, setSimulationSpeed] = useState<number>(1); // Speed multiplier (1x, 2x, 5x, etc.)
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
+
+    // Get warehouse data from API
+    const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
+
+    // Transform API warehouse data to legacy format for map display
+    const warehouses: Warehouse[] = warehouseData.map((w) => ({
+        id: parseInt(w.id), // Convert UUID to number for legacy compatibility
+        name: w.name,
+        lng: w.location.longitude,
+        lat: w.location.latitude,
+        type: 'Distribution' as const, // Default type since API doesn't have this field yet
+        capacity: 10000, // Default capacity since API doesn't have this field yet
+        description: `${w.organisation} warehouse in ${w.location.city}`
+    }));
 
     // Function to hide route
     const hideRoute = (transportId?: string) => {
@@ -233,7 +241,21 @@ export function MapComponent() {
         }
     }, [showRoute, selectTransport]);
 
-    // Initialize map
+    // Update simulation speed for all active transports
+    const updateSimulationSpeed = useCallback(async (speedMultiplier: number) => {
+        if (!connection.current) return;
+
+        try {
+            setSimulationSpeed(speedMultiplier);
+
+            // Call the global speed update method
+            await connection.current.invoke('SetGlobalSimulationSpeed', speedMultiplier);
+
+            console.log(`Updated global simulation speed to ${speedMultiplier}x`);
+        } catch (error) {
+            console.error('Failed to update simulation speed:', error);
+        }
+    }, []);    // Initialize map
     useEffect(() => {
         if (!mapContainer.current) return;
 
@@ -245,6 +267,18 @@ export function MapComponent() {
         });
 
         map.current = mapInstance;
+
+        return () => {
+            mapInstance.remove();
+        };
+    }, []);
+
+    // Add warehouse markers when warehouse data is loaded
+    useEffect(() => {
+        if (!map.current || warehousesLoading || warehouses.length === 0) return;
+
+        // Clear existing warehouse markers
+        warehouseMarkers.current.forEach(marker => marker.remove());
 
         // Add warehouse markers
         const markers: mapboxgl.Marker[] = [];
@@ -261,7 +295,7 @@ export function MapComponent() {
 
             const marker = new mapboxgl.Marker({ element: markerEl })
                 .setLngLat([warehouse.lng, warehouse.lat])
-                .addTo(mapInstance);
+                .addTo(map.current!);
 
             markerEl.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -280,9 +314,8 @@ export function MapComponent() {
 
         return () => {
             markers.forEach(marker => marker.remove());
-            mapInstance.remove();
         };
-    }, []);
+    }, [warehouses, warehousesLoading]);
 
     // Initialize SignalR connection and transport subscriptions
     useEffect(() => {
@@ -450,6 +483,13 @@ export function MapComponent() {
                     transportMarkers.current.delete(completion.transportId);
                 }, 5000);
             }
+        });
+
+        // Handle global simulation speed changes
+        newConnection.on('GlobalSimulationSpeedChanged', (data: any) => {
+            console.log('Global simulation speed changed:', data);
+            // The speed is already updated in the backend, just log confirmation
+            console.log(`Speed updated to ${data.speedMultiplier}x (${data.speedMps} m/s) for ${data.activeTransportCount} active transports`);
         });
 
         // Start connection and automatically subscribe to all orders
@@ -685,6 +725,48 @@ export function MapComponent() {
                     </SheetContent>
                 </Sheet>
             )}
+
+            {/* Simulation Speed Control */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border p-4 z-10 max-w-5xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                    <div className="flex items-center space-x-2">
+                        <Gauge className="h-4 w-4 text-blue-600" />
+                        <Label className="text-sm font-medium whitespace-nowrap">
+                            Simulation Speed
+                        </Label>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                        {[0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500].map((speed) => (
+                            <Button
+                                key={speed}
+                                size="sm"
+                                variant={simulationSpeed === speed ? "default" : "outline"}
+                                onClick={() => updateSimulationSpeed(speed)}
+                                className={`h-8 px-3 text-xs font-medium transition-all ${simulationSpeed === speed
+                                        ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                                        : "hover:bg-blue-50 hover:border-blue-300"
+                                    }`}
+                            >
+                                {speed < 1 ? `${speed}x` : `${speed}x`}
+                            </Button>
+                        ))}
+                    </div>
+                    <div className="flex items-center space-x-2 pl-2 sm:border-l">
+                        <div className="text-xs text-muted-foreground">
+                            <div className="font-medium">
+                                {simulationSpeed === 1
+                                    ? "Normal Speed"
+                                    : simulationSpeed < 1
+                                        ? "Slow Motion"
+                                        : "Fast Forward"}
+                            </div>
+                            <div className="text-blue-600 font-mono">
+                                {(54 * simulationSpeed).toFixed(0)} km/h
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

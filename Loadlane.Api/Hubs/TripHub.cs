@@ -63,7 +63,7 @@ public class TripHub : Hub
             _ = Task.Run(() => SimulateTransportPositions(
                 order.Transport.TransportId,
                 order.DirectionsCacheKey,
-                speedMps: 150.0), CancellationToken.None);
+                speedMps: 15.0), CancellationToken.None);
         }
     }
 
@@ -142,11 +142,25 @@ public class TripHub : Hub
             var stopwatch = Stopwatch.StartNew();
             double metersAlong = startMetersAlong;
             var lastPersistTime = DateTimeOffset.UtcNow;
+            var lastSpeedCheckTime = DateTimeOffset.UtcNow;
 
             while (metersAlong < runner.TotalMeters && !cancellationToken.IsCancellationRequested)
             {
                 var elapsedMs = stopwatch.ElapsedMilliseconds;
                 stopwatch.Restart();
+
+                // Check for speed updates every ~500ms to keep simulation responsive
+                var now = DateTimeOffset.UtcNow;
+                if ((now - lastSpeedCheckTime).TotalMilliseconds >= 500)
+                {
+                    var updatedState = await _simStateStore.GetAsync(transportId);
+                    if (updatedState != null && updatedState.SpeedMps != currentSpeedMps)
+                    {
+                        Console.WriteLine($"Transport {transportId}: Speed updated from {currentSpeedMps:F1} to {updatedState.SpeedMps:F1} m/s");
+                        currentSpeedMps = updatedState.SpeedMps;
+                    }
+                    lastSpeedCheckTime = now;
+                }
 
                 // Calculate distance traveled in this tick
                 var deltaTime = elapsedMs / 1000.0; // Convert to seconds
@@ -167,7 +181,6 @@ public class TripHub : Hub
                 }, cancellationToken);
 
                 // Persist state every ~1 second
-                var now = DateTimeOffset.UtcNow;
                 if ((now - lastPersistTime).TotalSeconds >= 1.0)
                 {
                     var state = new TransportSimState(transportId, routeCacheKey, metersAlong, currentSpeedMps, now);
@@ -241,6 +254,62 @@ public class TripHub : Hub
         catch (Exception ex)
         {
             Console.WriteLine($"Error updating transport speed for {transportId}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Updates the speed for all active transport simulations
+    /// </summary>
+    /// <param name="speedMultiplier">Speed multiplier (e.g., 1.0 = normal, 2.0 = 2x speed)</param>
+    public async Task SetGlobalSimulationSpeed(double speedMultiplier)
+    {
+        if (speedMultiplier <= 0)
+            throw new ArgumentException("Speed multiplier must be positive", nameof(speedMultiplier));
+
+        if (speedMultiplier > 1000)
+            throw new ArgumentException("Speed multiplier cannot exceed 1000x for safety", nameof(speedMultiplier));
+
+        try
+        {
+            // Base speed: 15 m/s (≈ 54 km/h)
+            const double baseSpeedMps = 15.0;
+            double newSpeedMps = baseSpeedMps * speedMultiplier;
+
+            // Get all active transport simulations
+            var activeTransports = _activeSimulations.Keys.ToList();
+
+            if (activeTransports.Count == 0)
+            {
+                Console.WriteLine("No active transports to update speed for");
+                await _hubContext.Clients.All.SendAsync("GlobalSimulationSpeedChanged", new
+                {
+                    speedMultiplier,
+                    speedMps = newSpeedMps,
+                    activeTransportCount = 0
+                });
+                return;
+            }
+
+            // Update speed for each active transport
+            var updateTasks = activeTransports.Select(transportId =>
+                _simStateStore.UpdateSpeedAsync(transportId, newSpeedMps, DateTimeOffset.UtcNow));
+
+            await Task.WhenAll(updateTasks);
+
+            // Broadcast global speed change to all clients
+            await _hubContext.Clients.All.SendAsync("GlobalSimulationSpeedChanged", new
+            {
+                speedMultiplier,
+                speedMps = newSpeedMps,
+                activeTransportCount = activeTransports.Count
+            });
+
+            Console.WriteLine($"Updated global simulation speed to {speedMultiplier}x ({newSpeedMps:F1} m/s) for {activeTransports.Count} active transports");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating global simulation speed: {ex.Message}");
+            throw;
         }
     }
 
