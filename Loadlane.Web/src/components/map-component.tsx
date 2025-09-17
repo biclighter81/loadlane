@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { HubConnectionBuilder, HubConnection } from '@microsoft/signalr';
 import { Button } from './ui/button';
@@ -13,9 +13,10 @@ import {
     Eye,
     MapPin,
 } from 'lucide-react';
-import type { Warehouse, RouteData } from '../types/map';
+import type { Warehouse } from '../types/map';
 import { useNavigate } from 'react-router-dom';
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
+import { OrderSearchPanel } from './OrderSearchPanel';
 
 // Mapbox access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
@@ -69,24 +70,168 @@ const getTypeColor = (type: Warehouse['type']) => {
     }
 };
 
-const getWarehouseDetailBgClass = (type: Warehouse['type']) => {
-    switch (type) {
-        case 'Distribution': return 'bg-gradient-to-r from-blue-600 to-blue-700';
-        case 'Storage': return 'bg-gradient-to-r from-green-600 to-green-700';
-        case 'Fulfillment': return 'bg-gradient-to-r from-purple-600 to-purple-700';
-        case 'CrossDock': return 'bg-gradient-to-r from-orange-600 to-orange-700';
-        default: return 'bg-gradient-to-r from-blue-600 to-blue-700';
-    }
-};
-
 export function MapComponent() {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
     const [selectedWarehouseInfo, setSelectedWarehouseInfo] = useState<Warehouse | null>(null);
+    const [selectedTransportInfo, setSelectedTransportInfo] = useState<any | null>(null);
+    const [orders, setOrders] = useState<any[]>([]);
     const warehouseMarkers = useRef<mapboxgl.Marker[]>([]);
     const transportMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
+    const transportRoutes = useRef<Map<string, any>>(new Map()); // Store route data for each transport
+    const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
+
+    // Function to hide route
+    const hideRoute = (transportId?: string) => {
+        if (!map.current) return;
+
+        const targetTransportId = transportId || visibleRoute;
+        if (!targetTransportId) return;
+
+        const sourceId = `route-${targetTransportId}`;
+        const layerId = `route-line-${targetTransportId}`;
+
+        if (map.current.getSource(sourceId)) {
+            if (map.current.getLayer(layerId)) {
+                map.current.removeLayer(layerId);
+            }
+            map.current.removeSource(sourceId);
+            setVisibleRoute(null);
+            console.log('Hidden route for transport:', targetTransportId);
+        }
+    };
+
+    // Function to handle transport drawer close
+    const handleTransportDrawerClose = () => {
+        if (selectedTransportInfo) {
+            hideRoute(selectedTransportInfo.transportId);
+            setSelectedTransportInfo(null);
+        }
+    };
+
+    // Function to show route
+    const showRoute = useCallback((transportId: string) => {
+        if (!map.current) return;
+
+        const routeData = transportRoutes.current.get(transportId);
+        if (!routeData) {
+            console.log('No route data available for transport:', transportId);
+            return;
+        }
+
+        const sourceId = `route-${transportId}`;
+        const layerId = `route-line-${transportId}`;
+
+        // Hide any other visible route first
+        if (visibleRoute && visibleRoute !== transportId) {
+            const oldSourceId = `route-${visibleRoute}`;
+            const oldLayerId = `route-line-${visibleRoute}`;
+            if (map.current.getSource(oldSourceId)) {
+                if (map.current.getLayer(oldLayerId)) {
+                    map.current.removeLayer(oldLayerId);
+                }
+                map.current.removeSource(oldSourceId);
+            }
+        }
+
+        // Don't add if already visible
+        if (map.current.getSource(sourceId)) {
+            return;
+        }
+
+        // Show the route
+        const geojson = {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+                type: 'LineString',
+                coordinates: routeData.coordinates
+            }
+        };
+
+        map.current.addSource(sourceId, {
+            type: 'geojson',
+            data: geojson as any
+        });
+
+        map.current.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': '#3b82f6',
+                'line-width': 4,
+                'line-opacity': 0.8
+            }
+        });
+
+        setVisibleRoute(transportId);
+
+        // Fit map to route bounds
+        const coordinates = routeData.coordinates;
+        const bounds = coordinates.reduce((bounds: any, coord: any) => {
+            return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+
+        map.current.fitBounds(bounds, {
+            padding: 60,
+            duration: 1000
+        });
+
+        console.log('Showing route for transport:', transportId, 'Distance:', routeData.distance, 'Duration:', routeData.duration);
+    }, [visibleRoute]);
+
+    // Function to handle transport selection
+    const selectTransport = useCallback((transport: any) => {
+        // Show the route
+        showRoute(transport.transportId);
+
+        // Get route data for additional info
+        const routeData = transportRoutes.current.get(transport.transportId);
+
+        // Set selected transport with route data
+        setSelectedTransportInfo({
+            ...transport,
+            routeData
+        });
+    }, [showRoute]);
+
+    // Function to handle order selection - zoom to transport's current position
+    const handleOrderSelect = useCallback((order: any) => {
+        if (!map.current || !order.transport) return;
+
+        const transportId = order.transport.transportId;
+        const marker = transportMarkers.current.get(transportId);
+
+        if (marker) {
+            // Get current position of the transport marker
+            const currentPos = marker.getLngLat();
+
+            // Zoom to the transport's current position
+            map.current.flyTo({
+                center: [currentPos.lng, currentPos.lat],
+                zoom: 10,
+                duration: 2000
+            });
+
+            // Optional: Show route if available
+        } else {
+            // If marker doesn't exist, zoom to start location
+            if (order.transport.startLocation) {
+                map.current.flyTo({
+                    center: [order.transport.startLocation.longitude, order.transport.startLocation.latitude],
+                    zoom: 15,
+                    duration: 2000
+                });
+            }
+        }
+    }, [showRoute, selectTransport]);
 
     // Initialize map
     useEffect(() => {
@@ -152,6 +297,35 @@ export function MapComponent() {
 
             console.log('Received transport:', transport);
 
+            // Store the order/transport data
+            setOrders(prevOrders => {
+                // Check if order already exists (avoid duplicates)
+                const existingOrderIndex = prevOrders.findIndex(order =>
+                    order.orderId === transport.orderId ||
+                    order.transport?.transportId === transport.transportId
+                );
+
+                if (existingOrderIndex >= 0) {
+                    // Update existing order
+                    const updatedOrders = [...prevOrders];
+                    updatedOrders[existingOrderIndex] = {
+                        id: transport.orderId,
+                        orderId: transport.orderId,
+                        transport: transport,
+                        createdAt: new Date().toISOString()
+                    };
+                    return updatedOrders;
+                } else {
+                    // Add new order
+                    return [...prevOrders, {
+                        id: transport.orderId,
+                        orderId: transport.orderId,
+                        transport: transport,
+                        createdAt: new Date().toISOString()
+                    }];
+                }
+            });
+
             // Create a transport marker
             const markerEl = document.createElement('div');
             markerEl.className = 'transport-marker';
@@ -175,10 +349,19 @@ export function MapComponent() {
             // Store the marker for position updates
             transportMarkers.current.set(transport.transportId, marker);
 
-            // Add tooltip on hover
-            markerEl.addEventListener('mouseenter', () => {
-                const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
-                    .setLngLat([transport.startLocation.longitude, transport.startLocation.latitude])
+            // Add tooltip functionality that follows the marker
+            let popup: mapboxgl.Popup | null = null;
+
+            const showTooltip = () => {
+                if (popup) popup.remove(); // Remove existing popup if any
+
+                const currentLngLat = marker.getLngLat();
+                popup = new mapboxgl.Popup({
+                    offset: 25,
+                    closeButton: false,
+                    className: 'transport-tooltip'
+                })
+                    .setLngLat(currentLngLat)
                     .setHTML(`
                         <div class="p-2">
                             <div class="font-semibold">${transport.transportId}</div>
@@ -188,10 +371,35 @@ export function MapComponent() {
                     `)
                     .addTo(map.current!);
 
-                markerEl.addEventListener('mouseleave', () => {
+                // Store reference for position updates
+                (markerEl as any)._popup = popup;
+            };
+
+            const hideTooltip = () => {
+                if (popup) {
                     popup.remove();
-                }, { once: true });
+                    popup = null;
+                }
+                (markerEl as any)._popup = null;
+            };
+
+            markerEl.addEventListener('mouseenter', showTooltip);
+            markerEl.addEventListener('mouseleave', hideTooltip);
+
+            // Add click handler to select transport and show route
+            markerEl.addEventListener('click', () => {
+                selectTransport(transport);
             });
+        });
+
+        // Handle Route events - store route data for each transport
+        newConnection.on('Route', (routeData: any) => {
+            console.log('Received route data:', routeData);
+
+            if (routeData.transportId && routeData.coordinates) {
+                // Store the route data for this transport
+                transportRoutes.current.set(routeData.transportId, routeData);
+            }
         });
 
         // Handle Position updates - move the transport markers
@@ -209,6 +417,12 @@ export function MapComponent() {
                 setTimeout(() => {
                     markerEl.style.transform = markerEl.style.transform.replace(' scale(1.1)', '');
                 }, 200);
+
+                // Update tooltip position if it's currently visible
+                const popup = (markerEl as any)._popup;
+                if (popup && popup.isOpen()) {
+                    popup.setLngLat([position.lng, position.lat]);
+                }
             }
         });
 
@@ -265,7 +479,14 @@ export function MapComponent() {
     };
 
     return (
-        <div className="h-full">
+        <div className="h-full relative">
+            {/* Order Search Panel - Top Left */}
+            <OrderSearchPanel
+                orders={orders}
+                onOrderSelect={handleOrderSelect}
+                className="absolute top-4 left-4 z-10 shadow-lg"
+            />
+
             {/* Map */}
             <div className="w-full h-full">
                 <div ref={mapContainer} className="w-full h-full rounded-lg" />
@@ -351,6 +572,114 @@ export function MapComponent() {
                                         </Button>
                                     </>
                                 )}
+                            </SheetFooter>
+                        </div>
+                    </SheetContent>
+                </Sheet>
+            )}
+
+            {/* Transport Info Drawer */}
+            {selectedTransportInfo && (
+                <Sheet
+                    open={!!selectedTransportInfo}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            // Hide route when closing drawer
+                            handleTransportDrawerClose();
+                        }
+                    }}
+                >
+                    <SheetContent side="right" className="w-[36rem] p-0">
+                        <div className="p-6 h-full flex flex-col">
+                            <SheetHeader className="mb-4">
+                                <div className="flex items-center justify-start">
+                                    <SheetTitle className="flex items-center gap-4">
+                                        <span className="text-2xl">
+                                            <Truck className="h-5 w-5" />
+                                        </span>
+                                        Transport {selectedTransportInfo.transportId}
+                                    </SheetTitle>
+                                </div>
+                                <SheetDescription className="sr-only">
+                                    Transport information and route details
+                                </SheetDescription>
+                            </SheetHeader>
+
+                            {selectedTransportInfo && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center">
+                                        <Label className="font-medium">Status</Label>
+                                        <Badge className={`ml-2 ${selectedTransportInfo.status === 'InTransit' ? 'bg-blue-100 text-blue-800' :
+                                            selectedTransportInfo.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                                'bg-gray-100 text-gray-800'
+                                            }`}>
+                                            {selectedTransportInfo.status}
+                                        </Badge>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Carrier</Label>
+                                        <p className="text-sm mt-1">
+                                            {selectedTransportInfo.carrier || 'Unknown'}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Start Location</Label>
+                                        <p className="text-sm mt-1">
+                                            {selectedTransportInfo.startLocation?.longitude.toFixed(4)}, {selectedTransportInfo.startLocation?.latitude.toFixed(4)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Destination</Label>
+                                        <p className="text-sm mt-1">
+                                            {selectedTransportInfo.destinationLocation?.longitude.toFixed(4)}, {selectedTransportInfo.destinationLocation?.latitude.toFixed(4)}
+                                        </p>
+                                    </div>
+
+                                    {selectedTransportInfo.stopps && selectedTransportInfo.stopps.length > 0 && (
+                                        <div>
+                                            <Label className="font-medium">Stops</Label>
+                                            <div className="mt-1 space-y-1">
+                                                {selectedTransportInfo.stopps.map((stop: any, index: number) => (
+                                                    <p key={index} className="text-sm text-gray-600">
+                                                        Stop {index + 1}: {stop.location?.longitude?.toFixed(4)}, {stop.location?.latitude?.toFixed(4)}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedTransportInfo.routeData && (
+                                        <>
+                                            <div>
+                                                <Label className="font-medium">Route Distance</Label>
+                                                <p className="text-sm mt-1">
+                                                    {(selectedTransportInfo.routeData.distance / 1000).toFixed(2)} km
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <Label className="font-medium">Estimated Duration</Label>
+                                                <p className="text-sm mt-1">
+                                                    {Math.round(selectedTransportInfo.routeData.duration / 60)} minutes
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            <SheetFooter className="mt-auto">
+                                <Button
+                                    onClick={handleTransportDrawerClose}
+                                    className="w-full"
+                                    variant="outline"
+                                >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Close
+                                </Button>
                             </SheetFooter>
                         </div>
                     </SheetContent>
