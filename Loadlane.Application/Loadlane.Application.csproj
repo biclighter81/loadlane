@@ -10,4 +10,8 @@
     <ProjectReference Include="..\Loadlane.Domain\Loadlane.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+  </ItemGroup>
+
 </Project>
