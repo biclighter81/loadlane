@@ -14,21 +14,13 @@ import {
     MapPin,
 } from 'lucide-react';
 import type { Warehouse } from '../types/map';
+import { useWarehouses } from '../hooks/useWarehouse';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
 import { OrderSearchPanel } from './OrderSearchPanel';
 
 // Mapbox access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
-
-const warehouses: Warehouse[] = [
-    { id: 1, name: "Berlin Central Hub", lng: 13.4050, lat: 52.5200, type: "Distribution", capacity: 10000, description: "Main distribution center in Berlin city center" },
-    { id: 2, name: "Spandau Logistics", lng: 13.1948, lat: 52.5370, type: "Storage", capacity: 15000, description: "Large storage facility in Spandau district" },
-    { id: 3, name: "Tempelhof Warehouse", lng: 13.3851, lat: 52.4728, type: "Fulfillment", capacity: 8000, description: "E-commerce fulfillment center near former airport" },
-    { id: 4, name: "Marzahn CrossDock", lng: 13.5435, lat: 52.5433, type: "CrossDock", capacity: 5000, description: "Cross-docking facility in eastern Berlin" },
-    { id: 5, name: "Reinickendorf Storage", lng: 13.3282, lat: 52.5836, type: "Storage", capacity: 12000, description: "Cold storage and general warehousing" },
-    { id: 6, name: "Lichtenberg Hub", lng: 13.5034, lat: 52.5158, type: "Distribution", capacity: 9000, description: "Regional distribution hub with rail access" }
-];
 
 const getWarehouseIcon = (type: Warehouse['type']) => {
     switch (type) {
@@ -82,6 +74,20 @@ export function MapComponent() {
     const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
+
+    // Get warehouse data from API
+    const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
+
+    // Transform API warehouse data to legacy format for map display
+    const warehouses: Warehouse[] = warehouseData.map((w) => ({
+        id: parseInt(w.id), // Convert UUID to number for legacy compatibility
+        name: w.name,
+        lng: w.location.longitude,
+        lat: w.location.latitude,
+        type: 'Distribution' as const, // Default type since API doesn't have this field yet
+        capacity: 10000, // Default capacity since API doesn't have this field yet
+        description: `${w.organisation} warehouse in ${w.location.city}`
+    }));
 
     // Function to hide route
     const hideRoute = (transportId?: string) => {
@@ -246,6 +252,18 @@ export function MapComponent() {
 
         map.current = mapInstance;
 
+        return () => {
+            mapInstance.remove();
+        };
+    }, []);
+
+    // Add warehouse markers when warehouse data is loaded
+    useEffect(() => {
+        if (!map.current || warehousesLoading || warehouses.length === 0) return;
+
+        // Clear existing warehouse markers
+        warehouseMarkers.current.forEach(marker => marker.remove());
+
         // Add warehouse markers
         const markers: mapboxgl.Marker[] = [];
         warehouses.forEach(warehouse => {
@@ -261,7 +279,7 @@ export function MapComponent() {
 
             const marker = new mapboxgl.Marker({ element: markerEl })
                 .setLngLat([warehouse.lng, warehouse.lat])
-                .addTo(mapInstance);
+                .addTo(map.current!);
 
             markerEl.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -280,9 +298,8 @@ export function MapComponent() {
 
         return () => {
             markers.forEach(marker => marker.remove());
-            mapInstance.remove();
         };
-    }, []);
+    }, [warehouses, warehousesLoading]);
 
     // Initialize SignalR connection and transport subscriptions
     useEffect(() => {

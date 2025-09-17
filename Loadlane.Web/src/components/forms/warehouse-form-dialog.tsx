@@ -20,8 +20,9 @@ import {
   FormMessage,
 } from '../ui/form';
 import { Input } from '../ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin } from 'lucide-react';
 import type { CreateWarehouseRequest } from '../../types/warehouse';
+import { MapPicker } from '../MapPicker';
 
 const warehouseSchema = yup.object({
   organisation: yup.string().required('Organisation is required').min(2, 'Organisation must be at least 2 characters'),
@@ -46,6 +47,7 @@ interface WarehouseFormDialogProps {
 
 export function WarehouseFormDialog({ open, onClose, onSubmit }: WarehouseFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const form = useForm<WarehouseFormData>({
     resolver: yupResolver(warehouseSchema),
@@ -79,6 +81,27 @@ export function WarehouseFormDialog({ open, onClose, onSubmit }: WarehouseFormDi
   const handleClose = () => {
     form.reset();
     onClose();
+  };
+
+  const handleLocationPicked = (location: { latitude: number; longitude: number; city?: string; street?: string; houseNo?: string; postCode?: string }) => {
+    form.setValue('location.latitude', location.latitude);
+    form.setValue('location.longitude', location.longitude);
+
+    // Populate address fields if they were found
+    if (location.city) {
+      form.setValue('location.city', location.city);
+    }
+    if (location.street) {
+      form.setValue('location.street', location.street);
+    }
+    if (location.houseNo) {
+      form.setValue('location.houseNo', location.houseNo);
+    }
+    if (location.postCode) {
+      form.setValue('location.postCode', location.postCode);
+    }
+
+    setShowMapPicker(false);
   };
 
   return (
@@ -224,6 +247,18 @@ export function WarehouseFormDialog({ open, onClose, onSubmit }: WarehouseFormDi
                   )}
                 />
               </div>
+
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMapPicker(true)}
+                  className="flex items-center gap-2"
+                >
+                  <MapPin className="h-4 w-4" />
+                  Pick on Map
+                </Button>
+              </div>
             </div>
 
             <DialogFooter>
@@ -238,6 +273,17 @@ export function WarehouseFormDialog({ open, onClose, onSubmit }: WarehouseFormDi
           </form>
         </Form>
       </DialogContent>
+
+      {/* Map Picker Dialog */}
+      <MapPicker
+        open={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onLocationSelect={handleLocationPicked}
+        initialLocation={{
+          latitude: form.watch('location.latitude'),
+          longitude: form.watch('location.longitude')
+        }}
+      />
     </Dialog>
   );
 }
