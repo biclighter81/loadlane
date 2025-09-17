@@ -1,4 +1,5 @@
 using Application.Logging;
+using Application.Services;
 using Infrastructure.Context;
 using Infrastructure.Logging;
 using Loadlane.Api.Hubs;
@@ -60,9 +61,10 @@ builder.Services.AddScoped<ICarrierRepository, CarrierRepository>();
 // Add Business Services
 builder.Services.AddScoped<IOrderService, OrderService>();
 
-// Add Application Services (commented out - not implemented yet)
-// builder.Services.AddScoped<DirectionsService>();
-// builder.Services.AddScoped<RouteSampler>();
+// Add Application Services
+builder.Services.AddScoped<DirectionsService>();
+builder.Services.AddScoped<RouteSampler>();
+builder.Services.AddScoped<SimStateStore>();
 
 var app = builder.Build();
 

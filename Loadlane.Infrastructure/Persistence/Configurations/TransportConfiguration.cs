@@ -79,10 +79,6 @@ public sealed class TransportConfiguration : IEntityTypeConfiguration<Transport>
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes
-        builder.HasIndex(x => x.TransportId)
-            .IsUnique()
-            .HasDatabaseName("ix_transports_transport_id");
-
         builder.HasIndex(x => x.Status)
             .HasDatabaseName("ix_transports_status");
 

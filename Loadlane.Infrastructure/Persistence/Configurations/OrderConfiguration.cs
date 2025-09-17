@@ -19,6 +19,9 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.Quantity)
             .IsRequired();
 
+        builder.Property(x => x.DirectionsCacheKey)
+            .HasMaxLength(500);
+
         builder.Property(x => x.CreatedUtc)
             .IsRequired();
 

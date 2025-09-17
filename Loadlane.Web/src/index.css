@@ -102,6 +102,36 @@
     }
   }
 
+  /* Transport marker styles */
+  .transport-marker {
+    cursor: pointer;
+  }
+
+  .transport-marker .w-8 {
+    transition: all 0.2s ease;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .transport-marker:hover .w-8 {
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Transport animation for movement */
+  .transport-marker .w-8 {
+    animation: transportPulse 3s infinite;
+  }
+
+  @keyframes transportPulse {
+    0%, 100% {
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+    }
+    50% {
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4), 0 0 16px rgba(59, 130, 246, 0.2);
+    }
+  }
+
   ::-webkit-scrollbar-thumb:hover {
     background: #475569;
   }

@@ -33,13 +33,9 @@ public class DirectionsService
         var key = $"route:{_opts.Profile}:{a.lng:F6},{a.lat:F6}->{b.lng:F6},{b.lat:F6}";
 
         // Try to get cached route
-        var cachedJson = await _cache.GetStringAsync(key);
-        if (!string.IsNullOrEmpty(cachedJson))
-        {
-            var deserializedRoute = JsonSerializer.Deserialize<CachedRoute>(cachedJson);
-            if (deserializedRoute != null)
-                return deserializedRoute.ToRoute();
-        }
+        var existingRoute = await GetCachedRouteAsync(key);
+        if (existingRoute != null)
+            return existingRoute;
 
         // Request GeoJSON geometry to avoid decoding
         string LonLat(double lng, double lat) => $"{lng.ToString("G17", CultureInfo.InvariantCulture)},{lat.ToString("G17", CultureInfo.InvariantCulture)}";
@@ -66,7 +62,7 @@ public class DirectionsService
 
         var route = new Route(coords, distance, duration);
 
-        // Cache for an hour (tune as needed) - serialize to JSON for Redis
+        // Cache for 24 hours (tune as needed) - serialize to JSON for Redis
         var cachedRoute = CachedRoute.FromRoute(route);
         var serializedRoute = JsonSerializer.Serialize(cachedRoute);
         var cacheOptions = new DistributedCacheEntryOptions
@@ -134,10 +130,31 @@ public class DirectionsService
         var serializedRoute = JsonSerializer.Serialize(cachedRoute);
         var cacheOptions = new DistributedCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
         };
         await _cache.SetStringAsync(key, serializedRoute, cacheOptions);
 
         return route;
+    }
+
+    public async Task<Route?> GetCachedRouteAsync(string cacheKey, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(cacheKey))
+            return null;
+
+        try
+        {
+            var cachedJson = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            if (string.IsNullOrEmpty(cachedJson))
+                return null;
+
+            var deserializedRoute = JsonSerializer.Deserialize<CachedRoute>(cachedJson);
+            return deserializedRoute?.ToRoute();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Failed to retrieve cached route with key '{cacheKey}': {ex.Message}");
+            return null;
+        }
     }
 }

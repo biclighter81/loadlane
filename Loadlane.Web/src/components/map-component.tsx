@@ -84,6 +84,8 @@ export function MapComponent() {
     const map = useRef<mapboxgl.Map | null>(null);
     const [selectedWarehouseInfo, setSelectedWarehouseInfo] = useState<Warehouse | null>(null);
     const warehouseMarkers = useRef<mapboxgl.Marker[]>([]);
+    const transportMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
+    const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
 
     // Initialize map
@@ -137,67 +139,123 @@ export function MapComponent() {
         };
     }, []);
 
-    // Initialize SignalR connection
+    // Initialize SignalR connection and transport subscriptions
     useEffect(() => {
         const newConnection = new HubConnectionBuilder()
             .withUrl('http://localhost:5119/hub/trip')
             .withAutomaticReconnect()
             .build();
 
-        //newConnection.on('Route', (payload: RouteData) => {
-        //     if (!map.current) return;
+        // Handle Transport events - when a new transport is received from backend
+        newConnection.on('Transport', (transport: any) => {
+            if (!map.current) return;
 
-        //     const coords = payload.coordinates;
-        //     const line = {
-        //         type: 'Feature' as const,
-        //         properties: {},
-        //         geometry: { type: 'LineString' as const, coordinates: coords }
-        //     };
+            console.log('Received transport:', transport);
 
-        //     if (!isRouteSourceAddedRef.current) {
-        //         map.current.addSource('route', { type: 'geojson', data: line });
-        //         map.current.addLayer({
-        //             id: 'route-line',
-        //             type: 'line',
-        //             source: 'route',
-        //             paint: { 'line-color': '#3b82f6', 'line-width': 5 }
-        //         });
-        //         isRouteSourceAddedRef.current = true;
-        //     } else {
-        //         const source = map.current.getSource('route') as mapboxgl.GeoJSONSource;
-        //         source.setData(line);
-        //     }
+            // Create a transport marker
+            const markerEl = document.createElement('div');
+            markerEl.className = 'transport-marker';
+            markerEl.innerHTML = `
+                <div class="flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                        <path d="M15 18H9"/>
+                        <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+                        <circle cx="17" cy="18" r="2"/>
+                        <circle cx="7" cy="18" r="2"/>
+                    </svg>
+                </div>
+            `;
+            markerEl.title = `Transport ${transport.transportId}`;
 
-        //     const bounds = coords.reduce((b, c) => b.extend(c as [number, number]), new mapboxgl.LngLatBounds(coords[0] as [number, number], coords[0] as [number, number]));
-        //     map.current.fitBounds(bounds, { padding: 60, duration: 0 });
+            const marker = new mapboxgl.Marker({ element: markerEl })
+                .setLngLat([transport.startLocation.longitude, transport.startLocation.latitude])
+                .addTo(map.current);
 
-        //     // Add route car marker
-        //     const carEl = document.createElement('div');
-        //     carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white';
-        //     carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19a6 6 0 0 0 6-6V7h2a2 2 0 0 1 2 2v6"/><circle cx="20" cy="16" r="2"/><path d="M8 19a6 6 0 0 1-6-6V9a2 2 0 0 1 2-2h2"/><circle cx="4" cy="16" r="2"/></svg>';
-        //     routeCarMarker.current = new mapboxgl.Marker({ element: carEl })
-        //         .setLngLat(coords[0] as [number, number])
-        //         .addTo(map.current);
-        // });
+            // Store the marker for position updates
+            transportMarkers.current.set(transport.transportId, marker);
 
-        // newConnection.on('Position', (p: { lng: number; lat: number }) => {
-        //     if (routeCarMarker.current) {
-        //         routeCarMarker.current.setLngLat([p.lng, p.lat]);
-        //     }
-        // });
+            // Add tooltip on hover
+            markerEl.addEventListener('mouseenter', () => {
+                const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
+                    .setLngLat([transport.startLocation.longitude, transport.startLocation.latitude])
+                    .setHTML(`
+                        <div class="p-2">
+                            <div class="font-semibold">${transport.transportId}</div>
+                            <div class="text-sm text-gray-600">Status: ${transport.status}</div>
+                            <div class="text-sm text-gray-600">Carrier: ${transport.carrier || 'Unknown'}</div>
+                        </div>
+                    `)
+                    .addTo(map.current!);
 
-        // newConnection.on('TripCompleted', () => {
-        //     if (routeCarMarker.current) {
-        //         const carEl = routeCarMarker.current.getElement();
-        //         carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>';
-        //         carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-green-500 rounded-full text-white';
-        //     }
-        // });
+                markerEl.addEventListener('mouseleave', () => {
+                    popup.remove();
+                }, { once: true });
+            });
+        });
 
-        // newConnection.start().catch(console.error);
-        // setConnection(newConnection);
+        // Handle Position updates - move the transport markers
+        newConnection.on('Position', (position: any) => {
+            if (!map.current) return;
+
+            const marker = transportMarkers.current.get(position.transportId);
+            if (marker) {
+                // Animate the marker movement
+                marker.setLngLat([position.lng, position.lat]);
+
+                // Optional: update marker style to show it's moving
+                const markerEl = marker.getElement();
+                markerEl.style.transform += ' scale(1.1)';
+                setTimeout(() => {
+                    markerEl.style.transform = markerEl.style.transform.replace(' scale(1.1)', '');
+                }, 200);
+            }
+        });
+
+        // Handle Transport completed events
+        newConnection.on('TransportCompleted', (completion: any) => {
+            console.log('Transport completed:', completion);
+
+            const marker = transportMarkers.current.get(completion.transportId);
+            if (marker) {
+                // Change marker appearance to show completion
+                const markerEl = marker.getElement();
+                const innerDiv = markerEl.querySelector('div');
+                if (innerDiv) {
+                    innerDiv.className = 'flex items-center justify-center w-8 h-8 bg-green-500 rounded-full text-white shadow-lg';
+                    innerDiv.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                    `;
+                }
+
+                // Remove marker after a delay
+                setTimeout(() => {
+                    marker.remove();
+                    transportMarkers.current.delete(completion.transportId);
+                }, 5000);
+            }
+        });
+
+        // Start connection and automatically subscribe to all orders
+        newConnection.start()
+            .then(() => {
+                console.log('SignalR connected, subscribing to orders...');
+                return newConnection.invoke('SubscribeToOrders');
+            })
+            .then(() => {
+                console.log('Successfully subscribed to all transport orders');
+            })
+            .catch(err => console.error('SignalR connection error:', err));
+
+        connection.current = newConnection;
 
         return () => {
+            // Clean up transport markers
+            transportMarkers.current.forEach(marker => marker.remove());
+            transportMarkers.current.clear();
+
             newConnection.stop();
         };
     }, []);

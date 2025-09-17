@@ -8,6 +8,7 @@ public sealed record OrderResponseDto(
     int Quantity,
     ArticleResponseDto Article,
     TransportResponseDto Transport,
+    string? DirectionsCacheKey,
     DateTime CreatedUtc
 );
 

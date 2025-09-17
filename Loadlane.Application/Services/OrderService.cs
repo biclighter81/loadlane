@@ -1,3 +1,4 @@
+using Application.Services;
 using Loadlane.Application.Abstractions.Persistence;
 using Loadlane.Application.DTOs;
 using Loadlane.Domain.Entities;
@@ -13,6 +14,7 @@ public interface IOrderService
 
 public sealed class OrderService : IOrderService
 {
+    private readonly DirectionsService _directions;
     private readonly IOrderRepository _orderRepository;
     private readonly ILocationRepository _locationRepository;
     private readonly IArticleRepository _articleRepository;
@@ -20,12 +22,14 @@ public sealed class OrderService : IOrderService
     private readonly IUnitOfWork _unitOfWork;
 
     public OrderService(
+        DirectionsService directions,
         IOrderRepository orderRepository,
         ILocationRepository locationRepository,
         IArticleRepository articleRepository,
         ICarrierRepository carrierRepository,
         IUnitOfWork unitOfWork)
     {
+        _directions = directions;
         _orderRepository = orderRepository;
         _locationRepository = locationRepository;
         _articleRepository = articleRepository;
@@ -82,6 +86,21 @@ public sealed class OrderService : IOrderService
 
         // Add transport to order
         order.AddTransport(transport);
+
+        // Generate directions for the transport route
+        var waypoints = transport.Stopps?.Select(s => (s.Location.Longitude, s.Location.Latitude)) ?? Enumerable.Empty<(double, double)>();
+        var route = await _directions.GetOrCreateRouteWithWaypointsAsync(
+            (startLocation.Longitude, startLocation.Latitude),
+            (destinationLocation.Longitude, destinationLocation.Latitude),
+            waypoints);
+
+        // Extract the cache key from the route generation
+        var waypointsList = waypoints.ToList();
+        var waypointsStr = waypointsList.Count > 0
+            ? string.Join("|", waypointsList.Select(w => $"{w.Item1:F6},{w.Item2:F6}"))
+            : "none";
+        var cacheKey = $"route:driving:{startLocation.Longitude:F6},{startLocation.Latitude:F6}->{destinationLocation.Longitude:F6},{destinationLocation.Latitude:F6}:waypoints:{waypointsStr}";
+        order.SetDirectionsCacheKey(cacheKey);
 
         // Save to database
         await _orderRepository.AddAsync(order, cancellationToken);
@@ -186,6 +205,7 @@ public sealed class OrderService : IOrderService
                     s.ActualArrival,
                     MapLocationResponse(s.Location))).ToList(),
                 transport.CreatedUtc),
+            order.DirectionsCacheKey,
             order.CreatedUtc);
     }
 

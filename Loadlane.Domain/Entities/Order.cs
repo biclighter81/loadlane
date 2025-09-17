@@ -6,12 +6,13 @@ public sealed class Order
     public string ExtOrderNo { get; private set; }
     public int Quantity { get; private set; }
     public Article Article { get; private set; } = null!;
+    public string? DirectionsCacheKey { get; private set; }
     public DateTime CreatedUtc { get; private set; } = DateTime.UtcNow;
 
     private readonly List<Transport> _transports = [];
     public IReadOnlyCollection<Transport> Transports => _transports.AsReadOnly();
 
-    private Order() { }
+    private Order() { ExtOrderNo = string.Empty; }
 
     public Order(string extOrderNo, int quantity, Article article)
     {
@@ -36,5 +37,10 @@ public sealed class Order
     public void AddTransport(Transport transport)
     {
         _transports.Add(transport);
+    }
+
+    public void SetDirectionsCacheKey(string cacheKey)
+    {
+        DirectionsCacheKey = cacheKey;
     }
 }
