@@ -49,3 +49,4 @@ publish
 migration-bundle
 .claude
 appsettings.Development.json
+Loadlane.Api/appsettings.Development.json

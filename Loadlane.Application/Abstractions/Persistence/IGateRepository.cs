@@ -8,7 +8,7 @@ public interface IGateRepository
     Task<Gate?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<List<Gate>> GetByWarehouseIdAsync(Guid warehouseId, CancellationToken cancellationToken = default);
     Task<List<Gate>> GetAllAsync(CancellationToken cancellationToken = default);
-    Task<bool> ExistsByNumberAndWarehouseAsync(string number, Guid warehouseId, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByNumberAndWarehouseAsync(int number, Guid warehouseId, CancellationToken cancellationToken = default);
     void Update(Gate gate);
     void Delete(Gate gate);
 }

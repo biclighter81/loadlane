@@ -254,12 +254,12 @@ public sealed record UpdateWarehouseRequest(
 );
 
 public sealed record CreateGateRequest(
-    string Number,
+    int Number,
     string? Description = null
 );
 
 public sealed record UpdateGateRequest(
-    string Number,
+    int Number,
     string? Description = null,
     bool IsActive = true
 );
