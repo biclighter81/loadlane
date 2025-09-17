@@ -1,6 +1,10 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var redis = builder.AddRedis("redis");
+var redis = builder.AddRedis("redis")
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent)
+    .WithHostPort(6379)
+    .WithArgs("--appendonly", "yes"); // Enable AOF persistence
 
 var postgres = builder
     .AddPostgres("postgres")

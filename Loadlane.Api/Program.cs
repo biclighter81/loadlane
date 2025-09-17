@@ -28,7 +28,9 @@ builder.Services.AddCors(options =>
 // Add Redis distributed cache instead of memory cache
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration.GetConnectionString("redis");
+    var connectionString = builder.Configuration.GetConnectionString("redis");
+    // The Aspire connection string will include the password
+    options.Configuration = connectionString ?? "localhost:6380,password=loadlane123";
 });
 
 // Configuration Options

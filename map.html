@@ -10,39 +10,243 @@
   <style>
     body, html, #map { height: 100%; margin: 0; }
     .emoji-marker { font-size: 28px; line-height: 28px; }
+    .warehouse-marker { font-size: 24px; line-height: 24px; cursor: pointer; }
+    .warehouse-marker:hover { transform: scale(1.2); }
     .panel {
       position:absolute; top:10px; left:10px; background:#fff; padding:8px 10px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15);
-      font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; z-index:1;
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; z-index:1; max-width: 300px;
     }
     .panel input { width: 120px; }
+    .warehouse-list {
+      margin: 10px 0;
+    }
+    .warehouse-item {
+      display: flex; align-items: center; margin: 5px 0; padding: 5px; border-radius: 4px;
+      border: 1px solid #e0e0e0; cursor: pointer;
+    }
+    .warehouse-item:hover { background: #f5f5f5; }
+    .warehouse-item.selected { background: #e3f2fd; border-color: #2196f3; }
+    .warehouse-item input[type="checkbox"] { margin-right: 8px; }
+    .role-selector {
+      margin: 5px 0;
+    }
+    .drawer {
+      position: fixed; top: 0; right: -400px; width: 400px; height: 100vh; 
+      background: white; box-shadow: -2px 0 10px rgba(0,0,0,0.3); 
+      transition: right 0.3s ease; z-index: 1000; overflow-y: auto; padding: 20px;
+    }
+    .drawer.open { right: 0; }
+    .drawer-close { float: right; cursor: pointer; font-size: 24px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="panel">
-    <label>A (lng,lat): <input id="a" value="13.4050,52.5200"></label>
-    <label>B (lng,lat): <input id="b" value="13.3777,52.5163"></label>
-    <button id="start">Start</button>
-    <button id="stop">Stop</button>
+    <h3 style="margin: 0 0 10px 0;">Route Planning</h3>
+    
+    <div class="warehouse-list">
+      <h4>Warehouses</h4>
+      <div id="warehouse-container"></div>
+    </div>
+    
+    <div class="role-selector">
+      <label>
+        <input type="radio" name="selection-mode" value="start" checked> Start Point
+      </label>
+      <label>
+        <input type="radio" name="selection-mode" value="waypoint"> Waypoint
+      </label>
+      <label>
+        <input type="radio" name="selection-mode" value="destination"> Destination
+      </label>
+    </div>
+    
+    <div style="margin: 10px 0;">
+      <strong>Route:</strong>
+      <div id="route-summary">Click warehouses to build your route</div>
+    </div>
+    
+    <button id="start">Start Trip</button>
+    <button id="stop">Stop Trip</button>
+    <button id="clear">Clear Route</button>
+  </div>
+
+  <!-- Warehouse Info Drawer -->
+  <div id="warehouse-drawer" class="drawer">
+    <span class="drawer-close" onclick="closeDrawer()">&times;</span>
+    <div id="drawer-content">
+      <!-- Warehouse details will be populated here -->
+    </div>
   </div>
 
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ'; // for tiles only
+    mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
 
     const map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [13.4050, 52.52],
-      zoom: 12
+      zoom: 11
     });
 
-    const el = document.createElement('div');
-    el.className = 'emoji-marker';
-    el.textContent = '🚗';
-    const marker = new mapboxgl.Marker({ element: el });
+    // Sample warehouses around Berlin
+    const warehouses = [
+      { id: 1, name: "Berlin Central Hub", lng: 13.4050, lat: 52.5200, type: "Distribution", capacity: 10000, description: "Main distribution center in Berlin city center" },
+      { id: 2, name: "Spandau Logistics", lng: 13.1948, lat: 52.5370, type: "Storage", capacity: 15000, description: "Large storage facility in Spandau district" },
+      { id: 3, name: "Tempelhof Warehouse", lng: 13.3851, lat: 52.4728, type: "Fulfillment", capacity: 8000, description: "E-commerce fulfillment center near former airport" },
+      { id: 4, name: "Marzahn CrossDock", lng: 13.5435, lat: 52.5433, type: "CrossDock", capacity: 5000, description: "Cross-docking facility in eastern Berlin" },
+      { id: 5, name: "Reinickendorf Storage", lng: 13.3282, lat: 52.5836, type: "Storage", capacity: 12000, description: "Cold storage and general warehousing" },
+      { id: 6, name: "Lichtenberg Hub", lng: 13.5034, lat: 52.5158, type: "Distribution", capacity: 9000, description: "Regional distribution hub with rail access" }
+    ];
 
+    // Route planning state
+    let selectedWarehouses = {
+      start: null,
+      waypoints: [],
+      destination: null
+    };
+
+    let warehouseMarkers = [];
+    const routeMarker = document.createElement('div');
+    routeMarker.className = 'emoji-marker';
+    routeMarker.textContent = '🚗';
+    const routeCarMarker = new mapboxgl.Marker({ element: routeMarker });
+
+    // Create warehouse markers
+    warehouses.forEach(warehouse => {
+      const el = document.createElement('div');
+      el.className = 'warehouse-marker';
+      el.textContent = getWarehouseEmoji(warehouse.type);
+      el.title = warehouse.name;
+      
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([warehouse.lng, warehouse.lat])
+        .addTo(map);
+      
+      el.onclick = (e) => {
+        e.stopPropagation();
+        selectWarehouse(warehouse);
+      };
+      
+      // Right click to show info drawer
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        showWarehouseInfo(warehouse);
+      };
+      
+      warehouseMarkers.push({ marker, warehouse });
+    });
+
+    function getWarehouseEmoji(type) {
+      switch(type) {
+        case 'Distribution': return '🏢';
+        case 'Storage': return '🏭';
+        case 'Fulfillment': return '📦';
+        case 'CrossDock': return '🚛';
+        default: return '🏢';
+      }
+    }
+
+    function selectWarehouse(warehouse) {
+      const mode = document.querySelector('input[name="selection-mode"]:checked').value;
+      
+      switch(mode) {
+        case 'start':
+          if (selectedWarehouses.start?.id === warehouse.id) {
+            selectedWarehouses.start = null;
+          } else {
+            selectedWarehouses.start = warehouse;
+          }
+          break;
+        case 'waypoint':
+          const index = selectedWarehouses.waypoints.findIndex(w => w.id === warehouse.id);
+          if (index > -1) {
+            selectedWarehouses.waypoints.splice(index, 1);
+          } else {
+            selectedWarehouses.waypoints.push(warehouse);
+          }
+          break;
+        case 'destination':
+          if (selectedWarehouses.destination?.id === warehouse.id) {
+            selectedWarehouses.destination = null;
+          } else {
+            selectedWarehouses.destination = warehouse;
+          }
+          break;
+      }
+      
+      updateWarehouseDisplay();
+      updateRouteSummary();
+    }
+
+    function updateWarehouseDisplay() {
+      const container = document.getElementById('warehouse-container');
+      container.innerHTML = '';
+      
+      warehouses.forEach(warehouse => {
+        const div = document.createElement('div');
+        div.className = 'warehouse-item';
+        
+        let role = '';
+        if (selectedWarehouses.start?.id === warehouse.id) role = '🎯 START';
+        else if (selectedWarehouses.destination?.id === warehouse.id) role = '🏁 DEST';
+        else if (selectedWarehouses.waypoints.find(w => w.id === warehouse.id)) role = '📍 WAYPOINT';
+        
+        div.innerHTML = `
+          <span>${getWarehouseEmoji(warehouse.type)}</span>
+          <div style="flex: 1; margin-left: 8px;">
+            <div><strong>${warehouse.name}</strong> ${role}</div>
+            <div style="font-size: 12px; color: #666;">${warehouse.type} • ${warehouse.capacity.toLocaleString()}m³</div>
+          </div>
+        `;
+        
+        div.onclick = () => selectWarehouse(warehouse);
+        div.oncontextmenu = (e) => {
+          e.preventDefault();
+          showWarehouseInfo(warehouse);
+        };
+        
+        if (role) div.classList.add('selected');
+        
+        container.appendChild(div);
+      });
+    }
+
+    function updateRouteSummary() {
+      const summary = document.getElementById('route-summary');
+      const parts = [];
+      
+      if (selectedWarehouses.start) parts.push(`Start: ${selectedWarehouses.start.name}`);
+      if (selectedWarehouses.waypoints.length) parts.push(`Waypoints: ${selectedWarehouses.waypoints.map(w => w.name).join(', ')}`);
+      if (selectedWarehouses.destination) parts.push(`Destination: ${selectedWarehouses.destination.name}`);
+      
+      summary.innerHTML = parts.length ? parts.join('<br>') : 'Click warehouses to build your route';
+    }
+
+    function showWarehouseInfo(warehouse) {
+      const drawer = document.getElementById('warehouse-drawer');
+      const content = document.getElementById('drawer-content');
+      
+      content.innerHTML = `
+        <h2>${getWarehouseEmoji(warehouse.type)} ${warehouse.name}</h2>
+        <p><strong>Type:</strong> ${warehouse.type}</p>
+        <p><strong>Capacity:</strong> ${warehouse.capacity.toLocaleString()} m³</p>
+        <p><strong>Location:</strong> ${warehouse.lng.toFixed(4)}, ${warehouse.lat.toFixed(4)}</p>
+        <p><strong>Description:</strong> ${warehouse.description}</p>
+        <br>
+        <p><em>Left-click to select for route, right-click for info</em></p>
+      `;
+      
+      drawer.classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('warehouse-drawer').classList.remove('open');
+    }
+
+    // SignalR connection
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5119/hub/trip') // 👈 your API on port 5119
+      .withUrl('http://localhost:5119/hub/trip')
       .withAutomaticReconnect()
       .build();
 
@@ -68,35 +272,56 @@
         map.getSource('route').setData(line);
       }
 
-      // fit map & drop marker at start
       const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
       map.fitBounds(bounds, { padding: 60, duration: 0 });
-      marker.setLngLat(coords[0]).addTo(map);
+      routeCarMarker.setLngLat(coords[0]).addTo(map);
     });
 
     connection.on('Position', p => {
-        debugger;
-      marker.setLngLat([p.lng, p.lat]);
+      routeCarMarker.setLngLat([p.lng, p.lat]);
     });
 
     connection.on('TripCompleted', () => {
-      el.textContent = '🏁';
+      routeMarker.textContent = '🏁';
     });
 
     connection.start().catch(console.error);
 
     document.getElementById('start').onclick = async () => {
-      const [alng, alat] = document.getElementById('a').value.split(',').map(Number);
-      const [blng, blat] = document.getElementById('b').value.split(',').map(Number);
-      // speedMps optional (e.g., 8 for ~29 km/h)
-      await connection.invoke('StartTrip', alng, alat, blng, blat, 12);
-      el.textContent = '🚗';
+      if (!selectedWarehouses.start || !selectedWarehouses.destination) {
+        alert('Please select at least a start point and destination');
+        return;
+      }
+      
+      const waypoints = selectedWarehouses.waypoints.map(w => ({ lng: w.lng, lat: w.lat }));
+      
+      await connection.invoke('StartTripWithWaypoints', 
+        selectedWarehouses.start.lng, selectedWarehouses.start.lat,
+        selectedWarehouses.destination.lng, selectedWarehouses.destination.lat,
+        waypoints, 12);
+      routeMarker.textContent = '🚗';
     };
 
     document.getElementById('stop').onclick = async () => {
       await connection.invoke('StopTrip');
-      el.textContent = '⏸️';
+      routeMarker.textContent = '⏸️';
     };
+
+    document.getElementById('clear').onclick = () => {
+      selectedWarehouses = { start: null, waypoints: [], destination: null };
+      updateWarehouseDisplay();
+      updateRouteSummary();
+      
+      if (map.getSource('route')) {
+        map.removeLayer('route-line');
+        map.removeSource('route');
+        routeSourceAdded = false;
+      }
+      routeCarMarker.remove();
+    };
+
+    // Initialize display
+    updateWarehouseDisplay();
   </script>
 </body>
 </html>
