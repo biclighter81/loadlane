@@ -41,8 +41,7 @@ builder.Services.AddScoped<ILoggerManager, LoggerManager>();
 
 // Add Database Context
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        (o) => o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
+    options.UseNpgsql(builder.Configuration.GetConnectionString("postgres"))
         .UseSnakeCaseNamingConvention()
 );
 

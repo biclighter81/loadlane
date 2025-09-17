@@ -9,10 +9,10 @@ var redis = builder.AddRedis("redis")
 var postgres = builder
     .AddPostgres("postgres")
     .WithDataVolume()
-    .WithEnvironment("POSTGRES_DB", "loadlane")
+    .WithHostPort(5432)
     .WithLifetime(ContainerLifetime.Persistent);
 
-var db = postgres.AddDatabase("loadlane-db");
+var db = postgres.AddDatabase("loadlane");
 
 var api = builder
     .AddProject<Projects.Loadlane_Api>("loadlane-api")
