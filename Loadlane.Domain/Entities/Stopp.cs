@@ -7,15 +7,15 @@ public sealed class Stopp : Waypoint
 
     private Stopp() : base() { }
 
-    public Stopp(Location location, int sequenceNumber, DateTime? plannedArrival = null)
-        : base(location, plannedArrival)
+    public Stopp(Location location, int sequenceNumber, DateTime? plannedArrival = null, Gate? gate = null)
+        : base(location, plannedArrival, gate)
     {
         SequenceNumber = sequenceNumber;
     }
 
-    public static Stopp Create(Location location, int sequenceNumber, DateTime? plannedArrival = null)
+    public static Stopp Create(Location location, int sequenceNumber, DateTime? plannedArrival = null, Gate? gate = null)
     {
-        return new Stopp(location, sequenceNumber, plannedArrival);
+        return new Stopp(location, sequenceNumber, plannedArrival, gate);
     }
 
     public void SetNextStopp(Stopp nextStopp)
