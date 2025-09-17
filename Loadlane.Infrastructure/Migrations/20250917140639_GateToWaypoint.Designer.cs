@@ -3,6 +3,7 @@ using System;
 using Infrastructure.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Loadlane.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250917140639_GateToWaypoint")]
+    partial class GateToWaypoint
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -317,11 +320,6 @@ namespace Loadlane.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_utc");
 
-                    b.Property<string>("DirectionsCacheKey")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("directions_cache_key");
-
                     b.Property<string>("ExtOrderNo")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -499,6 +497,10 @@ namespace Loadlane.Infrastructure.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_transports_status");
+
+                    b.HasIndex("TransportId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_transports_transport_id");
 
                     b.HasIndex("VehicleId")
                         .HasDatabaseName("ix_transports_vehicle_id");

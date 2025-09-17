@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from '@react-three/drei';
-import type { DockProps } from '../types';
+import type { DockProps } from '../types/docking';
 import { getStatusColor } from '../utils';
 
 const Dock: React.FC<DockProps> = ({ position, dockNumber, dockData, onClick }) => {

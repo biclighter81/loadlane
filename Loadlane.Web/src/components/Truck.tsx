@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Text, Cylinder } from '@react-three/drei';
 import { Group } from 'three';
-import type { TruckProps } from '../types';
+import type { TruckProps } from '../types/docking';
 
 const Truck: React.FC<TruckProps> = ({ truckData, dockPosition, isRemoving = false, onRemovalComplete, onClick }) => {
   const truckRef = useRef<Group>(null);

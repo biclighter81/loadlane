@@ -28,6 +28,13 @@ public sealed class WaypointConfiguration : IEntityTypeConfiguration<Waypoint>
             .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Optional navigation property to Gate
+        builder.HasOne(x => x.Gate)
+            .WithMany()
+            .HasForeignKey("GateId")
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Computed properties are ignored
         builder.Ignore(x => x.IsDelayed);
         builder.Ignore(x => x.HasArrived);
@@ -41,5 +48,8 @@ public sealed class WaypointConfiguration : IEntityTypeConfiguration<Waypoint>
 
         builder.HasIndex("LocationId")
             .HasDatabaseName("ix_waypoints_location_id");
+
+        builder.HasIndex("GateId")
+            .HasDatabaseName("ix_waypoints_gate_id");
     }
 }

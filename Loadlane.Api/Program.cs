@@ -42,6 +42,8 @@ builder.Services.Configure<MapboxOptions>(builder.Configuration.GetSection("Mapb
 
 // Add Infrastructure Services (includes logging)
 builder.Services.AddScoped<ILoggerManager, LoggerManager>();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // Add Database Context
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -57,9 +59,12 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ILocationRepository, LocationRepository>();
 builder.Services.AddScoped<IArticleRepository, ArticleRepository>();
 builder.Services.AddScoped<ICarrierRepository, CarrierRepository>();
+builder.Services.AddScoped<IWarehouseRepository, WarehouseRepository>();
+builder.Services.AddScoped<IGateRepository, GateRepository>();
 
 // Add Business Services
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 
 // Add Application Services
 builder.Services.AddScoped<DirectionsService>();
@@ -77,7 +82,8 @@ app.MapHub<TripHub>("/hub/trip");
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.Run();

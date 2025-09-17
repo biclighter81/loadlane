@@ -32,4 +32,9 @@ public sealed class Gate
     {
         Description = description;
     }
+
+    public void UpdateNumber(string number)
+    {
+        Number = number;
+    }
 }

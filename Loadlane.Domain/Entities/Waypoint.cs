@@ -7,14 +7,16 @@ public abstract class Waypoint
     public DateTime? ActualArrival { get; private set; }
     public DateTime? ActualDeparture { get; private set; }
     public Location Location { get; private set; } = null!;
+    public Gate? Gate { get; private set; }
     public DateTime CreatedUtc { get; private set; } = DateTime.UtcNow;
 
     protected Waypoint() { }
 
-    protected Waypoint(Location location, DateTime? plannedArrival = null)
+    protected Waypoint(Location location, DateTime? plannedArrival = null, Gate? gate = null)
     {
         Location = location;
         PlannedArrival = plannedArrival;
+        Gate = gate;
     }
 
     public void SetPlannedArrival(DateTime plannedArrival)
@@ -30,6 +32,11 @@ public abstract class Waypoint
     public void RecordDeparture(DateTime departureTime)
     {
         ActualDeparture = departureTime;
+    }
+
+    public void SetGate(Gate? gate)
+    {
+        Gate = gate;
     }
 
     public bool IsDelayed => PlannedArrival.HasValue && ActualArrival.HasValue && ActualArrival > PlannedArrival;
