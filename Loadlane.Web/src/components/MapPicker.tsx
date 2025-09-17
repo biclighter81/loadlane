@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { MapPin, Search } from 'lucide-react';
 
-// Mapbox access token
+// Mapbox public access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
 
 interface LocationData {
@@ -371,8 +371,8 @@ export function MapPicker({ open, onClose, onLocationSelect, initialLocation }: 
                     <div className="border rounded-lg overflow-hidden">
                         <div
                             ref={mapContainer}
-                            className="w-full h-[500px]"
-                            style={{ minHeight: '500px' }}
+                            className="w-full h-[300px]"
+                            style={{ minHeight: '300px' }}
                         />
                     </div>
 

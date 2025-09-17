@@ -65,6 +65,7 @@ builder.Services.AddScoped<IGateRepository, GateRepository>();
 // Add Business Services
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IWarehouseService, WarehouseService>();
+builder.Services.AddScoped<ICarrierService, CarrierService>();
 
 // Add Application Services
 builder.Services.AddScoped<DirectionsService>();

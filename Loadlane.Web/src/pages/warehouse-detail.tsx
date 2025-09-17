@@ -14,7 +14,8 @@ import {
     Loader2,
     Edit,
     Plus,
-    MoreHorizontal
+    MoreHorizontal,
+    Trash2
 } from "lucide-react";
 import { useWarehouse, useWarehouseGates } from "../hooks/useWarehouse";
 import { GateFormDialog } from "../components/forms/gate-form-dialog";
@@ -256,7 +257,8 @@ export function WarehouseDetailPage() {
                                                         onClick={() => handleDeleteGateClick(gate)}
                                                         className="text-destructive"
                                                     >
-                                                        Delete
+                                                         <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
