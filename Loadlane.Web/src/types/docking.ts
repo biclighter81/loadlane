@@ -37,6 +37,7 @@ export interface TruckDocksProps {
   docks: DockData[];
   trucks?: TruckData[];
   removingTrucks?: number[];
+  warehouseText?: string;
   onTruckRemovalComplete?: (truckId: number) => void;
   onDockStatusChange?: (dockId: number, newStatus: DockStatusType) => void;
   onTruckClick?: (truckData: TruckData, dockId: number) => void;

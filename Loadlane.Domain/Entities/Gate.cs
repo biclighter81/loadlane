@@ -3,7 +3,7 @@ namespace Loadlane.Domain.Entities;
 public sealed class Gate
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
-    public string Number { get; private set; }
+    public int Number { get; private set; }
     public string? Description { get; private set; }
     public bool IsActive { get; private set; } = true;
     public Warehouse Warehouse { get; private set; } = null!;
@@ -11,7 +11,7 @@ public sealed class Gate
 
     private Gate() { }
 
-    public Gate(string number, Warehouse warehouse, string? description = null)
+    public Gate(int number, Warehouse warehouse, string? description = null)
     {
         Number = number;
         Warehouse = warehouse;
@@ -33,7 +33,7 @@ public sealed class Gate
         Description = description;
     }
 
-    public void UpdateNumber(string number)
+    public void UpdateNumber(int number)
     {
         Number = number;
     }

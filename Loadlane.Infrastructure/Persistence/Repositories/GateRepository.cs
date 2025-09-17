@@ -47,7 +47,7 @@ public sealed class GateRepository : IGateRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> ExistsByNumberAndWarehouseAsync(string number, Guid warehouseId, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByNumberAndWarehouseAsync(int number, Guid warehouseId, CancellationToken cancellationToken = default)
     {
         return await _context.Gates
             .AnyAsync(g => g.Number == number && g.Warehouse.Id == warehouseId, cancellationToken);
