@@ -10,7 +10,7 @@ public class YardController : ControllerBase
 {
 
     [HttpGet]
-    public async Task<IActionResult> GetDockedVehicles(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetDockedVehicles([FromQuery] string warehouseId, CancellationToken cancellationToken)
     {
 
         //return dummy data for now (DockingDto with random Vehicle)

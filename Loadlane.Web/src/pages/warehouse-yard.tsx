@@ -70,7 +70,7 @@ export default function WarehouseYardPage() {
                 const [warehouseData, gatesData, yardData] = await Promise.all([
                     warehouseService.getWarehouseById(id),
                     warehouseService.getWarehouseGates(id),
-                    yardService.getDockedVehicles()
+                    yardService.getDockedVehicles(id)
                 ]);
 
                 setWarehouse(warehouseData);

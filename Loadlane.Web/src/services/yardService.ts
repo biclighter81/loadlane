@@ -11,8 +11,8 @@ class YardService {
     return response.json();
   }
 
-  async getDockedVehicles(): Promise<DockingDto[]> {
-    const response = await fetch(`${API_BASE_URL}/yard`);
+  async getDockedVehicles(warehouseId: string): Promise<DockingDto[]> {
+    const response = await fetch(`${API_BASE_URL}/yard?warehouseId=${encodeURIComponent(warehouseId)}`);
     return this.handleResponse<DockingDto[]>(response);
   }
 }
