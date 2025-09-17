@@ -48,3 +48,4 @@ appsettings.Testing.json
 publish
 migration-bundle
 .claude
+appsettings.Development.json
