@@ -20,13 +20,19 @@ public class YardController : ControllerBase
                 new VehicleDto("1", "ABC123", "Carrier A", "Driver A", "123456789"),
                 new GatesDto("1", 1, true, "Type A", "Description A"),
                 DateTime.UtcNow.AddHours(-1),
-                null
+                null // Kein DepartureTime = noch gedockt
             ),
             new DockingDto(
                 new VehicleDto("2", "DEF456", "Carrier B", "Driver B", "987654321"),
                 new GatesDto("2", 2, true, "Type B", "Description B"),
                 DateTime.UtcNow.AddHours(-2),
-                DateTime.UtcNow.AddMinutes(-30)
+                null // Kein DepartureTime = noch gedockt
+            ),
+            new DockingDto(
+                new VehicleDto("3", "GHI789", "Carrier C", "Driver C", "456789123"),
+                new GatesDto("3", 3, true, "Type C", "Description C"),
+                DateTime.UtcNow.AddHours(-3),
+                null // Kein DepartureTime = noch gedockt
             )
         };
         var result = await Task.FromResult(dummyData);
