@@ -17,6 +17,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
     <ProjectReference Include="..\Loadlane.Application\Loadlane.Application.csproj" />
     <ProjectReference Include="..\Loadlane.Domain\Loadlane.Domain.csproj" />
     <ProjectReference Include="..\Loadlane.Infrastructure\Loadlane.Infrastructure.csproj" />
