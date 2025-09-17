@@ -1,8 +1,11 @@
 using Application.Logging;
-using Application.Services;
 using Infrastructure.Context;
 using Infrastructure.Logging;
 using Loadlane.Api.Hubs;
+using Loadlane.Application.Abstractions.Persistence;
+using Loadlane.Application.Services;
+using Loadlane.Infrastructure.Persistence;
+using Loadlane.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,9 +48,21 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         .UseSnakeCaseNamingConvention()
 );
 
-// Add Application Services
-builder.Services.AddScoped<DirectionsService>();
-builder.Services.AddScoped<RouteSampler>();
+// Add Unit of Work
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Add Repositories
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<ILocationRepository, LocationRepository>();
+builder.Services.AddScoped<IArticleRepository, ArticleRepository>();
+builder.Services.AddScoped<ICarrierRepository, CarrierRepository>();
+
+// Add Business Services
+builder.Services.AddScoped<IOrderService, OrderService>();
+
+// Add Application Services (commented out - not implemented yet)
+// builder.Services.AddScoped<DirectionsService>();
+// builder.Services.AddScoped<RouteSampler>();
 
 var app = builder.Build();
 
