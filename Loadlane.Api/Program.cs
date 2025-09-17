@@ -71,6 +71,7 @@ builder.Services.AddScoped<ICarrierService, CarrierService>();
 builder.Services.AddScoped<DirectionsService>();
 builder.Services.AddScoped<RouteSampler>();
 builder.Services.AddScoped<SimStateStore>();
+builder.Services.AddScoped<GlobalSimulationStore>();
 
 var app = builder.Build();
 
