@@ -9,4 +9,5 @@ public interface ICarrierRepository
     Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default);
     Task AddAsync(Carrier carrier, CancellationToken cancellationToken = default);
     Task<List<Carrier>> GetAllAsync(CancellationToken cancellationToken = default);
+    void Delete(Carrier carrier);
 }

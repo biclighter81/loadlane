@@ -4,6 +4,8 @@ import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
+import { Button } from './ui/button';
+import { RegisterOrderDialog } from './forms/register-order-dialog';
 
 interface OrderSearchPanelProps {
     orders: any[];
@@ -14,6 +16,12 @@ interface OrderSearchPanelProps {
 export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: OrderSearchPanelProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredOrders, setFilteredOrders] = useState(orders);
+    const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+
+    const openNewOrderDialog = () => {
+        // Logic to open a dialog or navigate to a new order creation page
+        alert('Open New Order Dialog');
+    }
 
     // Filter orders based on search term
     useEffect(() => {
@@ -57,6 +65,10 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     <Package className="h-5 w-5" />
                     Orders & Transports
                 </CardTitle>
+                <Button variant="default"  size="sm" onClick={() => openNewOrderDialog()}>
+                   Create Order
+                </Button>
+
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -125,6 +137,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     </div>
                 </ScrollArea>
             </CardContent>
+            <RegisterOrderDialog open={isRegisterDialogOpen} onClose={() => setIsRegisterDialogOpen(false)} />
         </Card>
     );
 }

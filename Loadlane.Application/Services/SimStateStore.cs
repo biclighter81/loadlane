@@ -1,21 +1,21 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace Loadlane.Application.Services;
 
 /// <summary>
-/// Record representing the simulation state of a transport
+/// Record representing the simulation state of a transport (position and route only)
 /// </summary>
 public sealed record TransportSimState(
     string TransportId,
     string RouteKey,
     double MetersAlong,
-    double SpeedMps,
     DateTimeOffset UpdatedUtc
 );
 
 /// <summary>
-/// Redis-backed store for transport simulation state persistence
+/// Redis-backed store for transport simulation state persistence with thread-safe operations
 /// </summary>
 public sealed class SimStateStore
 {
@@ -32,6 +32,7 @@ public sealed class SimStateStore
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
+
 
     /// <summary>
     /// Retrieves the simulation state for a transport
@@ -62,7 +63,7 @@ public sealed class SimStateStore
     }
 
     /// <summary>
-    /// Persists the simulation state for a transport
+    /// Persists the simulation state for a transport with thread-safe locking
     /// </summary>
     /// <param name="state">The transport simulation state to save</param>
     /// <param name="ttl">Optional time-to-live; defaults to 6 hours</param>
@@ -96,28 +97,5 @@ public sealed class SimStateStore
 
         var key = KeyPrefix + transportId;
         await _cache.RemoveAsync(key);
-    }
-
-    /// <summary>
-    /// Updates only the speed and timestamp for a transport (for speed changes)
-    /// </summary>
-    /// <param name="transportId">The transport identifier</param>
-    /// <param name="speedMps">The new speed in meters per second</param>
-    /// <param name="updatedUtc">The update timestamp</param>
-    /// <returns>True if the state was updated, false if no existing state found</returns>
-    public async Task<bool> UpdateSpeedAsync(string transportId, double speedMps, DateTimeOffset updatedUtc)
-    {
-        var existingState = await GetAsync(transportId);
-        if (existingState == null)
-            return false;
-
-        var updatedState = existingState with
-        {
-            SpeedMps = speedMps,
-            UpdatedUtc = updatedUtc
-        };
-
-        await SetAsync(updatedState);
-        return true;
     }
 }

@@ -15,6 +15,7 @@ public class TripHub : Hub
     private readonly IOrderService _orderService;
     private readonly RouteSampler _sampler;
     private readonly SimStateStore _simStateStore;
+    private readonly GlobalSimulationStore _globalSimStore;
     private readonly IHubContext<TripHub> _hubContext;
 
     // Track running simulations by transportId
@@ -24,12 +25,13 @@ public class TripHub : Hub
     private readonly IGroupManager _groups;
 
     public TripHub(DirectionsService directions, IOrderService orderService, RouteSampler sampler,
-                   SimStateStore simStateStore, IHubContext<TripHub> hubContext)
+                   SimStateStore simStateStore, GlobalSimulationStore globalSimStore, IHubContext<TripHub> hubContext)
     {
         _directions = directions;
         _orderService = orderService;
         _sampler = sampler;
         _simStateStore = simStateStore;
+        _globalSimStore = globalSimStore;
         _hubContext = hubContext;
         _groups = _hubContext.Groups;
     }
@@ -59,21 +61,19 @@ public class TripHub : Hub
                 stopps = order.Transport.Stopps
             });
 
-            // Start position simulation for this transport (default speed: 15 m/s ≈ 54 km/h)
+            // Start position simulation for this transport using global speed control
             _ = Task.Run(() => SimulateTransportPositions(
                 order.Transport.TransportId,
-                order.DirectionsCacheKey,
-                speedMps: 15.0), CancellationToken.None);
+                order.DirectionsCacheKey), CancellationToken.None);
         }
     }
 
     /// <summary>
-    /// Starts or resumes time-based transport simulation with Redis persistence
+    /// Starts or resumes time-based transport simulation with Redis persistence and global speed control
     /// </summary>
     /// <param name="transportId">Unique transport identifier</param>
     /// <param name="routeCacheKey">Cache key for the route data</param>
-    /// <param name="speedMps">Speed in meters per second (default: 15 m/s)</param>
-    public async Task SimulateTransportPositions(string transportId, string routeCacheKey, double speedMps = 15.0)
+    public async Task SimulateTransportPositions(string transportId, string routeCacheKey)
     {
         if (string.IsNullOrEmpty(transportId))
             throw new ArgumentException("TransportId cannot be null or empty", nameof(transportId));
@@ -114,15 +114,14 @@ public class TripHub : Hub
             // Load or initialize simulation state
             var savedState = await _simStateStore.GetAsync(transportId);
             double startMetersAlong = 0.0;
-            double currentSpeedMps = speedMps;
 
             if (savedState != null && savedState.RouteKey == routeCacheKey)
             {
-                // Resume from saved state, accounting for time elapsed
+                // Resume from saved state, accounting for time elapsed using current global speed
+                var currentSpeed = await _globalSimStore.GetCurrentSpeedAsync();
                 var elapsedTime = DateTimeOffset.UtcNow - savedState.UpdatedUtc;
                 var elapsedSeconds = elapsedTime.TotalSeconds;
-                startMetersAlong = savedState.MetersAlong + (savedState.SpeedMps * elapsedSeconds);
-                currentSpeedMps = savedState.SpeedMps;
+                startMetersAlong = savedState.MetersAlong + (currentSpeed * elapsedSeconds);
 
                 // Clamp to route bounds
                 startMetersAlong = Math.Max(0, Math.Min(startMetersAlong, runner.TotalMeters));
@@ -137,30 +136,19 @@ public class TripHub : Hub
                 coordinates = route.Coords.Select(p => new[] { p.lng, p.lat }).ToArray()
             }, cancellationToken);
 
-            // Time-based simulation loop
+            // Time-based simulation loop with global speed
             const int tickMs = 100; // 10 Hz
             var stopwatch = Stopwatch.StartNew();
             double metersAlong = startMetersAlong;
             var lastPersistTime = DateTimeOffset.UtcNow;
-            var lastSpeedCheckTime = DateTimeOffset.UtcNow;
 
             while (metersAlong < runner.TotalMeters && !cancellationToken.IsCancellationRequested)
             {
                 var elapsedMs = stopwatch.ElapsedMilliseconds;
                 stopwatch.Restart();
 
-                // Check for speed updates every ~500ms to keep simulation responsive
-                var now = DateTimeOffset.UtcNow;
-                if ((now - lastSpeedCheckTime).TotalMilliseconds >= 500)
-                {
-                    var updatedState = await _simStateStore.GetAsync(transportId);
-                    if (updatedState != null && updatedState.SpeedMps != currentSpeedMps)
-                    {
-                        Console.WriteLine($"Transport {transportId}: Speed updated from {currentSpeedMps:F1} to {updatedState.SpeedMps:F1} m/s");
-                        currentSpeedMps = updatedState.SpeedMps;
-                    }
-                    lastSpeedCheckTime = now;
-                }
+                // Get current global speed
+                var currentSpeedMps = await _globalSimStore.GetCurrentSpeedAsync();
 
                 // Calculate distance traveled in this tick
                 var deltaTime = elapsedMs / 1000.0; // Convert to seconds
@@ -180,10 +168,11 @@ public class TripHub : Hub
                     lat = position.lat
                 }, cancellationToken);
 
-                // Persist state every ~1 second
+                // Persist state every ~1 second (with thread-safe locking)
+                var now = DateTimeOffset.UtcNow;
                 if ((now - lastPersistTime).TotalSeconds >= 1.0)
                 {
-                    var state = new TransportSimState(transportId, routeCacheKey, metersAlong, currentSpeedMps, now);
+                    var state = new TransportSimState(transportId, routeCacheKey, metersAlong, now);
                     await _simStateStore.SetAsync(state);
                     lastPersistTime = now;
                 }
@@ -197,6 +186,9 @@ public class TripHub : Hub
             {
                 transportId
             }, cancellationToken);
+
+            // Update DB state to 'Delivered'
+
 
             // Clean up simulation state
             await _simStateStore.RemoveAsync(transportId);
@@ -224,41 +216,21 @@ public class TripHub : Hub
     }
 
     /// <summary>
-    /// Updates the speed of an active transport simulation
+    /// Updates the global simulation speed multiplier
     /// </summary>
-    /// <param name="transportId">The transport identifier</param>
-    /// <param name="speedMps">New speed in meters per second</param>
+    /// <param name="transportId">The transport identifier (for backward compatibility - not used)</param>
+    /// <param name="speedMps">New speed in meters per second (will be converted to multiplier)</param>
+    [Obsolete("Use SetGlobalSimulationSpeed instead")]
     public async Task SetTransportSpeed(string transportId, double speedMps)
     {
-        if (string.IsNullOrEmpty(transportId))
-            throw new ArgumentException("TransportId cannot be null or empty", nameof(transportId));
-
-        if (speedMps < 0)
-            throw new ArgumentException("Speed cannot be negative", nameof(speedMps));
-
-        try
-        {
-            // Update the saved state with new speed
-            var updated = await _simStateStore.UpdateSpeedAsync(transportId, speedMps, DateTimeOffset.UtcNow);
-
-            if (updated)
-            {
-                // Broadcast speed change to clients
-                await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportSpeedChanged", new
-                {
-                    transportId,
-                    speedMps
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error updating transport speed for {transportId}: {ex.Message}");
-        }
+        // Convert to multiplier (assuming base speed of 15 m/s)
+        const double baseSpeed = 15.0;
+        var multiplier = speedMps / baseSpeed;
+        await SetGlobalSimulationSpeed(multiplier);
     }
 
     /// <summary>
-    /// Updates the speed for all active transport simulations
+    /// Updates the global simulation speed multiplier for all active transport simulations
     /// </summary>
     /// <param name="speedMultiplier">Speed multiplier (e.g., 1.0 = normal, 2.0 = 2x speed)</param>
     public async Task SetGlobalSimulationSpeed(double speedMultiplier)
@@ -271,40 +243,25 @@ public class TripHub : Hub
 
         try
         {
-            // Base speed: 15 m/s (≈ 54 km/h)
+            // Store the global speed multiplier
+            await _globalSimStore.SetSpeedMultiplierAsync(speedMultiplier);
+
+            // Calculate actual speed for display purposes
             const double baseSpeedMps = 15.0;
-            double newSpeedMps = baseSpeedMps * speedMultiplier;
+            double actualSpeedMps = baseSpeedMps * speedMultiplier;
 
-            // Get all active transport simulations
-            var activeTransports = _activeSimulations.Keys.ToList();
-
-            if (activeTransports.Count == 0)
-            {
-                Console.WriteLine("No active transports to update speed for");
-                await _hubContext.Clients.All.SendAsync("GlobalSimulationSpeedChanged", new
-                {
-                    speedMultiplier,
-                    speedMps = newSpeedMps,
-                    activeTransportCount = 0
-                });
-                return;
-            }
-
-            // Update speed for each active transport
-            var updateTasks = activeTransports.Select(transportId =>
-                _simStateStore.UpdateSpeedAsync(transportId, newSpeedMps, DateTimeOffset.UtcNow));
-
-            await Task.WhenAll(updateTasks);
+            // Get count of active transport simulations
+            var activeTransportCount = _activeSimulations.Count;
 
             // Broadcast global speed change to all clients
             await _hubContext.Clients.All.SendAsync("GlobalSimulationSpeedChanged", new
             {
                 speedMultiplier,
-                speedMps = newSpeedMps,
-                activeTransportCount = activeTransports.Count
+                speedMps = actualSpeedMps,
+                activeTransportCount
             });
 
-            Console.WriteLine($"Updated global simulation speed to {speedMultiplier}x ({newSpeedMps:F1} m/s) for {activeTransports.Count} active transports");
+            Console.WriteLine($"Updated global simulation speed to {speedMultiplier}x ({actualSpeedMps:F1} m/s) for {activeTransportCount} active transports");
         }
         catch (Exception ex)
         {
@@ -339,6 +296,15 @@ public class TripHub : Hub
         // Note: In a real implementation, you might want to track which 
         // simulations belong to which connection for more precise cleanup
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Gets the current global simulation speed multiplier
+    /// </summary>
+    /// <returns>The current speed multiplier</returns>
+    public async Task<double> GetGlobalSimulationSpeed()
+    {
+        return await _globalSimStore.GetSpeedMultiplierAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

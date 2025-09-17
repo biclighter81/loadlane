@@ -43,4 +43,9 @@ public sealed class CarrierRepository : ICarrierRepository
             .OrderBy(c => c.Name)
             .ToListAsync(cancellationToken);
     }
+
+    public void Delete(Carrier carrier)
+    {
+        _context.Carriers.Remove(carrier);
+    }
 }

@@ -246,12 +246,13 @@ export function MapComponent() {
         if (!connection.current) return;
 
         try {
-            setSimulationSpeed(speedMultiplier);
+            // Don't update UI optimistically - wait for backend confirmation
+            // The backend will broadcast GlobalSimulationSpeedChanged which will update the UI
 
             // Call the global speed update method
             await connection.current.invoke('SetGlobalSimulationSpeed', speedMultiplier);
 
-            console.log(`Updated global simulation speed to ${speedMultiplier}x`);
+            console.log(`Requested global simulation speed update to ${speedMultiplier}x`);
         } catch (error) {
             console.error('Failed to update simulation speed:', error);
         }
@@ -488,7 +489,8 @@ export function MapComponent() {
         // Handle global simulation speed changes
         newConnection.on('GlobalSimulationSpeedChanged', (data: any) => {
             console.log('Global simulation speed changed:', data);
-            // The speed is already updated in the backend, just log confirmation
+            // Update UI to reflect the new speed multiplier from backend
+            setSimulationSpeed(data.speedMultiplier);
             console.log(`Speed updated to ${data.speedMultiplier}x (${data.speedMps} m/s) for ${data.activeTransportCount} active transports`);
         });
 
@@ -500,6 +502,12 @@ export function MapComponent() {
             })
             .then(() => {
                 console.log('Successfully subscribed to all transport orders');
+                // Get the current global simulation speed to initialize UI
+                return newConnection.invoke('GetGlobalSimulationSpeed');
+            })
+            .then((currentSpeed: number) => {
+                console.log('Initialized global simulation speed:', currentSpeed);
+                setSimulationSpeed(currentSpeed);
             })
             .catch(err => console.error('SignalR connection error:', err));
 
@@ -736,18 +744,18 @@ export function MapComponent() {
                         </Label>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                        {[0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500].map((speed) => (
+                        {[1, 5, 25, 100, 250, 500].map((speed) => (
                             <Button
                                 key={speed}
                                 size="sm"
                                 variant={simulationSpeed === speed ? "default" : "outline"}
                                 onClick={() => updateSimulationSpeed(speed)}
                                 className={`h-8 px-3 text-xs font-medium transition-all ${simulationSpeed === speed
-                                        ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                                        : "hover:bg-blue-50 hover:border-blue-300"
+                                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                                    : "hover:bg-blue-50 hover:border-blue-300"
                                     }`}
                             >
-                                {speed < 1 ? `${speed}x` : `${speed}x`}
+                                {speed}x
                             </Button>
                         ))}
                     </div>

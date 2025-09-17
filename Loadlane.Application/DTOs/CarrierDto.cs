@@ -6,6 +6,18 @@ public sealed record CarrierDto(
     string? ContactPhone = null
 );
 
+public sealed record CreateCarrierDto(
+    string Name,
+    string? ContactEmail = null,
+    string? ContactPhone = null
+);
+
+public sealed record UpdateCarrierDto(
+    string Name,
+    string? ContactEmail = null,
+    string? ContactPhone = null
+);
+
 public sealed record CarrierResponseDto(
     Guid Id,
     string Name,
