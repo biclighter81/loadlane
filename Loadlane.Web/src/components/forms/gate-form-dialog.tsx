@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
 import {
   Dialog,
   DialogContent,
@@ -25,13 +23,11 @@ import { Switch } from '../ui/switch';
 import { Loader2 } from 'lucide-react';
 import type { CreateGateRequest, UpdateGateRequest, GateResponse } from '../../types/warehouse';
 
-const gateSchema = yup.object({
-  number: yup.number().required('Gate number is required'),
-  description: yup.string().optional(),
-  isActive: yup.boolean().default(true),
-});
-
-type GateFormData = yup.InferType<typeof gateSchema>;
+type GateFormData = {
+  number: number;
+  description?: string;
+  isActive: boolean;
+};
 
 interface GateFormDialogProps {
   open: boolean;
@@ -45,7 +41,6 @@ export function GateFormDialog({ open, onClose, onSubmit, gate, mode }: GateForm
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<GateFormData>({
-    resolver: yupResolver(gateSchema),
     defaultValues: {
       number: gate?.number || 1,
       description: gate?.description || '',
@@ -73,11 +68,15 @@ export function GateFormDialog({ open, onClose, onSubmit, gate, mode }: GateForm
   }, [open, gate, mode, form]);
 
   const handleSubmit = async (data: GateFormData) => {
+    if (!data.number || data.number < 1) {
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const submitData = mode === 'create'
-        ? { number: data.number, description: data.description }
-        : { number: data.number, description: data.description, isActive: data.isActive };
+        ? { number: data.number, description: data.description?.trim() || undefined }
+        : { number: data.number, description: data.description?.trim() || undefined, isActive: data.isActive };
 
       await onSubmit(submitData);
       form.reset();

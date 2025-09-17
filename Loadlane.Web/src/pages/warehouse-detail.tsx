@@ -7,39 +7,46 @@ import { Separator } from "../components/ui/separator";
 import {
     Building2,
     MapPin,
-    Users,
     ArrowLeft,
     BarChart3,
     Activity,
-    TrendingUp,
     AlertCircle,
     Loader2,
     Edit,
     Plus,
-    Settings,
-    MoreHorizontal
+    MoreHorizontal,
+    Trash2
 } from "lucide-react";
 import { useWarehouse, useWarehouseGates } from "../hooks/useWarehouse";
 import { GateFormDialog } from "../components/forms/gate-form-dialog";
+import { UpdateWarehouseFormDialog } from "../components/forms/update-warehouse-form-dialog";
+import { ConfirmationDialog } from "../components/ui/confirmation-dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
-import type { CreateGateRequest, UpdateGateRequest, GateSimpleResponse } from "../types/warehouse";
+import type { CreateGateRequest, UpdateGateRequest, UpdateWarehouseRequest, GateSimpleResponse } from "../types/warehouse";
 
 export function WarehouseDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { warehouse, loading: warehouseLoading, error: warehouseError } = useWarehouse(id);
+    const { warehouse, loading: warehouseLoading, error: warehouseError, updateWarehouse } = useWarehouse(id);
     const { gates, loading: gatesLoading, error: gatesError, createGate, updateGate, deleteGate } = useWarehouseGates(id);
 
     const [isCreateGateDialogOpen, setIsCreateGateDialogOpen] = useState(false);
+    const [isUpdateWarehouseDialogOpen, setIsUpdateWarehouseDialogOpen] = useState(false);
     const [editingGate, setEditingGate] = useState<GateSimpleResponse | null>(null);
+    const [deleteGateId, setDeleteGateId] = useState<string | null>(null);
+    const [gateToDelete, setGateToDelete] = useState<GateSimpleResponse | null>(null);
 
     const handleCreateGate = async (data: CreateGateRequest) => {
         await createGate(data);
+    };
+
+    const handleUpdateWarehouse = async (data: UpdateWarehouseRequest) => {
+        await updateWarehouse(data);
     };
 
     const handleUpdateGate = async (data: UpdateGateRequest) => {
@@ -49,9 +56,16 @@ export function WarehouseDetailPage() {
         }
     };
 
-    const handleDeleteGate = async (gateId: string) => {
-        if (confirm('Are you sure you want to delete this gate?')) {
-            await deleteGate(gateId);
+    const handleDeleteGateClick = (gate: GateSimpleResponse) => {
+        setDeleteGateId(gate.id);
+        setGateToDelete(gate);
+    };
+
+    const handleConfirmDeleteGate = async () => {
+        if (deleteGateId) {
+            await deleteGate(deleteGateId);
+            setDeleteGateId(null);
+            setGateToDelete(null);
         }
     };
 
@@ -115,10 +129,7 @@ export function WarehouseDetailPage() {
                         </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="text-sm px-3 py-1">
-                            {warehouse.organisation}
-                        </Badge>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => setIsUpdateWarehouseDialogOpen(true)}>
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
                         </Button>
@@ -126,51 +137,59 @@ export function WarehouseDetailPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col lg:flex-row gap-6">
                 {/* Basic Information */}
-                <Card>
+                <Card className="flex-1">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <BarChart3 className="h-5 w-5" />
                             Facility Overview
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
+                    <CardContent className="space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="text-center">
+                                <div className="text-3xl font-bold text-primary">{warehouse.gates.length}</div>
                                 <div className="text-sm font-medium text-muted-foreground">Total Gates</div>
-                                <div className="text-2xl font-bold">{warehouse.gates.length}</div>
                             </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Active Gates</div>
-                                <div className="text-2xl font-bold text-green-600">
+                            <div className="text-center">
+                                <div className="text-3xl font-bold text-green-600">
                                     {warehouse.gates.filter(g => g.isActive).length}
                                 </div>
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Organisation</div>
-                                <div className="text-sm font-semibold">{warehouse.organisation}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Created</div>
-                                <div className="text-sm">{formatDate(warehouse.createdUtc)}</div>
+                                <div className="text-sm font-medium text-muted-foreground">Active Gates</div>
                             </div>
                         </div>
+
                         <Separator />
+
+                        <div className="space-y-4">
+                            <div>
+                                <div className="text-sm font-medium text-muted-foreground mb-2">Organisation</div>
+                                <div className="text-lg font-semibold">{warehouse.organisation}</div>
+                            </div>
+                            <div>
+                                <div className="text-sm font-medium text-muted-foreground mb-2">Created</div>
+                                <div className="text-base">{formatDate(warehouse.createdUtc)}</div>
+                            </div>
+                        </div>
+
+                        <Separator />
+
                         <div>
-                            <div className="text-sm font-medium text-muted-foreground mb-1">Location</div>
-                            <div className="space-y-1">
+                            <div className="text-sm font-medium text-muted-foreground mb-3">Location Details</div>
+                            <div className="space-y-2">
                                 <div className="flex items-center space-x-2">
-                                    <MapPin className="h-4 w-4" />
-                                    <span className="text-sm">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-base">
                                         {warehouse.location.street} {warehouse.location.houseNo}
                                     </span>
                                 </div>
-                                <div className="text-sm text-muted-foreground ml-6">
+                                <div className="text-base text-muted-foreground ml-6">
                                     {warehouse.location.postCode} {warehouse.location.city}
                                 </div>
-                                <div className="text-sm font-mono text-muted-foreground ml-6">
-                                    {warehouse.location.latitude.toFixed(6)}, {warehouse.location.longitude.toFixed(6)}
+                                <div className="text-sm font-mono text-muted-foreground ml-6 mt-2">
+                                    <div>Lat: {warehouse.location.latitude.toFixed(6)}</div>
+                                    <div>Lng: {warehouse.location.longitude.toFixed(6)}</div>
                                 </div>
                             </div>
                         </div>
@@ -178,7 +197,7 @@ export function WarehouseDetailPage() {
                 </Card>
 
                 {/* Gates Management */}
-                <Card>
+                <Card className="flex-1">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Activity className="h-5 w-5" />
@@ -235,10 +254,11 @@ export function WarehouseDetailPage() {
                                                         Edit
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
-                                                        onClick={() => handleDeleteGate(gate.id)}
+                                                        onClick={() => handleDeleteGateClick(gate)}
                                                         className="text-destructive"
                                                     >
-                                                        Delete
+                                                         <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
@@ -250,62 +270,6 @@ export function WarehouseDetailPage() {
                     </CardContent>
                 </Card>
 
-                {/* Performance Metrics (Mock Data) */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5" />
-                            Performance Metrics
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Daily Throughput</div>
-                                <div className="text-xl font-bold text-blue-600">850 packages</div>
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Avg. Processing</div>
-                                <div className="text-xl font-bold text-green-600">2.4 hours</div>
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">Error Rate</div>
-                                <div className="text-xl font-bold text-green-600">0.03%</div>
-                            </div>
-                            <div>
-                                <div className="text-sm font-medium text-muted-foreground">On-Time Rate</div>
-                                <div className="text-xl font-bold text-green-600">98.7%</div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Actions */}
-                <Card className="lg:col-span-3">
-                    <CardHeader>
-                        <CardTitle>Quick Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <Button variant="outline" onClick={() => navigate('/map')}>
-                                <MapPin className="h-4 w-4 mr-2" />
-                                View on Map
-                            </Button>
-                            <Button variant="outline">
-                                <BarChart3 className="h-4 w-4 mr-2" />
-                                View Reports
-                            </Button>
-                            <Button variant="outline">
-                                <Settings className="h-4 w-4 mr-2" />
-                                Settings
-                            </Button>
-                            <Button variant="outline">
-                                <Users className="h-4 w-4 mr-2" />
-                                Manage Staff
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Gate Form Dialogs */}
@@ -329,6 +293,29 @@ export function WarehouseDetailPage() {
                     createdUtc: editingGate.createdUtc
                 } : undefined}
                 mode="edit"
+            />
+
+            <UpdateWarehouseFormDialog
+                open={isUpdateWarehouseDialogOpen}
+                onClose={() => setIsUpdateWarehouseDialogOpen(false)}
+                onSubmit={handleUpdateWarehouse}
+                warehouse={warehouse}
+            />
+
+            <ConfirmationDialog
+                open={!!deleteGateId}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDeleteGateId(null);
+                        setGateToDelete(null);
+                    }
+                }}
+                title="Delete Gate"
+                description={`Are you sure you want to delete gate "${gateToDelete?.number}"? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="destructive"
+                onConfirm={handleConfirmDeleteGate}
             />
         </div>
     );

@@ -7,8 +7,12 @@ export const DockStatus = {
 export type DockStatusType = typeof DockStatus[keyof typeof DockStatus];
 
 export interface DockData {
-  id: number;
-  status: DockStatusType;
+  id: string;
+  number: number;
+  description?: string;
+  isActive: boolean;
+  createdUtc: string;
+  status?: DockStatusType; // Optional computed status
 }
 
 export interface TruckData {

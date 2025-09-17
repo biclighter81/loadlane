@@ -82,7 +82,7 @@ export function MapComponent() {
 
     // Transform API warehouse data to legacy format for map display
     const warehouses: Warehouse[] = warehouseData.map((w) => ({
-        id: parseInt(w.id), // Convert UUID to number for legacy compatibility
+        id: w.id,
         name: w.name,
         lng: w.location.longitude,
         lat: w.location.latitude,

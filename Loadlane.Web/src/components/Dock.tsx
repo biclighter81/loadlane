@@ -1,19 +1,23 @@
 import React from 'react';
 import { Box, Text } from '@react-three/drei';
 import type { DockProps } from '../types/docking';
+import { DockStatus } from '../types/docking';
 import { getStatusColor } from '../utils';
 
 const Dock: React.FC<DockProps> = ({ position, dockNumber, dockData, onClick }) => {
   const handleClick = (e: any) => {
     e.stopPropagation();
-    onClick(dockData.id);
+    onClick(dockData.number);
   };
+
+  // Ermittle den Status: verwende den vorhandenen Status oder leite ihn aus isActive ab
+  const currentStatus = dockData.status || (dockData.isActive ? DockStatus.FREE : DockStatus.BLOCKED);
 
   return (
     <group position={position} onClick={handleClick}>
       {/* Hauptdock-Plattform */}
       <Box args={[4, 0.2, 8]} position={[0, 0, 0]}>
-        <meshStandardMaterial color={getStatusColor(dockData.status)} />
+        <meshStandardMaterial color={getStatusColor(currentStatus)} />
       </Box>
       
       {/* Ladeplattform */}
@@ -23,12 +27,12 @@ const Dock: React.FC<DockProps> = ({ position, dockNumber, dockData, onClick }) 
       
       {/* Sicherheitsgeländer links */}
       <Box args={[0.1, 1.2, 8]} position={[-2, 1.2, 0]}>
-        <meshStandardMaterial color={getStatusColor(dockData.status)} />
+        <meshStandardMaterial color={getStatusColor(currentStatus)} />
       </Box>
       
       {/* Sicherheitsgeländer rechts */}
       <Box args={[0.1, 1.2, 8]} position={[2, 1.2, 0]}>
-        <meshStandardMaterial color={getStatusColor(dockData.status)} />
+        <meshStandardMaterial color={getStatusColor(currentStatus)} />
       </Box>
       
       {/* Dock-Nummer Text */}
@@ -44,7 +48,7 @@ const Dock: React.FC<DockProps> = ({ position, dockNumber, dockData, onClick }) 
       
       {/* Tor-Rahmen */}
       <Box args={[4.5, 6, 0.2]} position={[0, 3, -5]} castShadow>
-        <meshStandardMaterial color={getStatusColor(dockData.status)} />
+        <meshStandardMaterial color={getStatusColor(currentStatus)} />
       </Box>
       {/* Tor-Öffnung (dunkler Bereich) */}
       <Box args={[3.8, 5, 0.1]} position={[0, 2.5, -4.9]}>

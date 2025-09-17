@@ -19,7 +19,7 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
     if (selectedDockId === dockId) {
       setSelectedDockId(null);
       // Status zurück zu FREE oder BLOCKED basierend auf vorherigem Status
-      const currentDock = docks.find(d => d.id === dockId);
+      const currentDock = docks.find(d => d.number === dockId);
       if (currentDock?.status === DockStatus.SELECTED) {
         onDockStatusChange?.(dockId, DockStatus.FREE);
       }
@@ -95,7 +95,7 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
           <Dock
             key={dock.id}
             position={dockPositions[index]}
-            dockNumber={dock.id}
+            dockNumber={dock.number}
             dockData={dock}
             onClick={handleDockClick}
           />
@@ -103,10 +103,10 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
         
         {/* Render alle Trucks */}
         {trucks.map((truck) => {
-          // Finde die Position des Ziel-Docks basierend auf der Dock-ID
-          const targetDockIndex = docks.findIndex(dock => dock.id === truck.targetDock);
+          // Finde die Position des Ziel-Docks basierend auf der Dock-Number
+          const targetDockIndex = docks.findIndex(dock => dock.number === truck.targetDock);
           if (targetDockIndex === -1) {
-            console.warn(`Dock with ID ${truck.targetDock} not found for truck ${truck.id}`);
+            console.warn(`Dock with number ${truck.targetDock} not found for truck ${truck.id}`);
             return null;
           }
           

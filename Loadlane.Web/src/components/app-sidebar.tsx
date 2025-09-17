@@ -1,4 +1,4 @@
-import { Map, Building2 } from "lucide-react";
+import { Map, Building2, Truck } from "lucide-react";
 import {
     Sidebar,
     SidebarContent,
@@ -22,6 +22,11 @@ const items = [
         title: "Warehouses",
         url: "/warehouses",
         icon: Building2,
+    },
+    {
+        title: "Carriers",
+        url: "/carriers",
+        icon: Truck,
     },
 ];
 
