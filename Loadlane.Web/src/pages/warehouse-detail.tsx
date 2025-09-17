@@ -61,7 +61,7 @@ export function WarehouseDetailPage() {
             <div className="container mx-auto p-6">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Warehouse Not Found</h1>
-                    <Button onClick={() => navigate('/warehouse')}>
+                    <Button onClick={() => navigate('/warehouses')}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Warehouses
                     </Button>
@@ -79,7 +79,7 @@ export function WarehouseDetailPage() {
                 <Button
                     variant="ghost"
                     className="mb-4"
-                    onClick={() => navigate('/warehouse')}
+                    onClick={() => navigate('/warehouses')}
                 >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to Warehouses

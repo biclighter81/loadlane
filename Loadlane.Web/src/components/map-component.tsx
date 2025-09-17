@@ -1,22 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { HubConnectionBuilder, HubConnection } from '@microsoft/signalr';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
-import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
 import {
     Building2,
     Package,
     Truck,
     RotateCcw,
-    X
+    X,
+    Eye,
+    MapPin,
 } from 'lucide-react';
-import type { Warehouse, RouteSelection, RouteData, SelectionMode } from '../types/map';
+import type { Warehouse, RouteData } from '../types/map';
 import { useNavigate } from 'react-router-dom';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
 
 // Mapbox access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
@@ -83,18 +82,8 @@ const getWarehouseDetailBgClass = (type: Warehouse['type']) => {
 export function MapComponent() {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
-    const [selectedWarehouses, setSelectedWarehouses] = useState<RouteSelection>({
-        start: null,
-        waypoints: [],
-        destination: null
-    });
-    const [selectionMode, setSelectionMode] = useState<SelectionMode>('start');
     const [selectedWarehouseInfo, setSelectedWarehouseInfo] = useState<Warehouse | null>(null);
-    const [warehouseDetailView, setWarehouseDetailView] = useState<Warehouse | null>(null);
-    const [connection, setConnection] = useState<HubConnection | null>(null);
     const warehouseMarkers = useRef<mapboxgl.Marker[]>([]);
-    const routeCarMarker = useRef<mapboxgl.Marker | null>(null);
-    const isRouteSourceAddedRef = useRef(false);
     const navigate = useNavigate();
 
     // Initialize map
@@ -155,324 +144,159 @@ export function MapComponent() {
             .withAutomaticReconnect()
             .build();
 
-        newConnection.on('Route', (payload: RouteData) => {
-            if (!map.current) return;
+        //newConnection.on('Route', (payload: RouteData) => {
+        //     if (!map.current) return;
 
-            const coords = payload.coordinates;
-            const line = {
-                type: 'Feature' as const,
-                properties: {},
-                geometry: { type: 'LineString' as const, coordinates: coords }
-            };
+        //     const coords = payload.coordinates;
+        //     const line = {
+        //         type: 'Feature' as const,
+        //         properties: {},
+        //         geometry: { type: 'LineString' as const, coordinates: coords }
+        //     };
 
-            if (!isRouteSourceAddedRef.current) {
-                map.current.addSource('route', { type: 'geojson', data: line });
-                map.current.addLayer({
-                    id: 'route-line',
-                    type: 'line',
-                    source: 'route',
-                    paint: { 'line-color': '#3b82f6', 'line-width': 5 }
-                });
-                isRouteSourceAddedRef.current = true;
-            } else {
-                const source = map.current.getSource('route') as mapboxgl.GeoJSONSource;
-                source.setData(line);
-            }
+        //     if (!isRouteSourceAddedRef.current) {
+        //         map.current.addSource('route', { type: 'geojson', data: line });
+        //         map.current.addLayer({
+        //             id: 'route-line',
+        //             type: 'line',
+        //             source: 'route',
+        //             paint: { 'line-color': '#3b82f6', 'line-width': 5 }
+        //         });
+        //         isRouteSourceAddedRef.current = true;
+        //     } else {
+        //         const source = map.current.getSource('route') as mapboxgl.GeoJSONSource;
+        //         source.setData(line);
+        //     }
 
-            const bounds = coords.reduce((b, c) => b.extend(c as [number, number]), new mapboxgl.LngLatBounds(coords[0] as [number, number], coords[0] as [number, number]));
-            map.current.fitBounds(bounds, { padding: 60, duration: 0 });
+        //     const bounds = coords.reduce((b, c) => b.extend(c as [number, number]), new mapboxgl.LngLatBounds(coords[0] as [number, number], coords[0] as [number, number]));
+        //     map.current.fitBounds(bounds, { padding: 60, duration: 0 });
 
-            // Add route car marker
-            const carEl = document.createElement('div');
-            carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white';
-            carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19a6 6 0 0 0 6-6V7h2a2 2 0 0 1 2 2v6"/><circle cx="20" cy="16" r="2"/><path d="M8 19a6 6 0 0 1-6-6V9a2 2 0 0 1 2-2h2"/><circle cx="4" cy="16" r="2"/></svg>';
-            routeCarMarker.current = new mapboxgl.Marker({ element: carEl })
-                .setLngLat(coords[0] as [number, number])
-                .addTo(map.current);
-        });
+        //     // Add route car marker
+        //     const carEl = document.createElement('div');
+        //     carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white';
+        //     carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19a6 6 0 0 0 6-6V7h2a2 2 0 0 1 2 2v6"/><circle cx="20" cy="16" r="2"/><path d="M8 19a6 6 0 0 1-6-6V9a2 2 0 0 1 2-2h2"/><circle cx="4" cy="16" r="2"/></svg>';
+        //     routeCarMarker.current = new mapboxgl.Marker({ element: carEl })
+        //         .setLngLat(coords[0] as [number, number])
+        //         .addTo(map.current);
+        // });
 
-        newConnection.on('Position', (p: { lng: number; lat: number }) => {
-            if (routeCarMarker.current) {
-                routeCarMarker.current.setLngLat([p.lng, p.lat]);
-            }
-        });
+        // newConnection.on('Position', (p: { lng: number; lat: number }) => {
+        //     if (routeCarMarker.current) {
+        //         routeCarMarker.current.setLngLat([p.lng, p.lat]);
+        //     }
+        // });
 
-        newConnection.on('TripCompleted', () => {
-            if (routeCarMarker.current) {
-                const carEl = routeCarMarker.current.getElement();
-                carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>';
-                carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-green-500 rounded-full text-white';
-            }
-        });
+        // newConnection.on('TripCompleted', () => {
+        //     if (routeCarMarker.current) {
+        //         const carEl = routeCarMarker.current.getElement();
+        //         carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>';
+        //         carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-green-500 rounded-full text-white';
+        //     }
+        // });
 
-        newConnection.start().catch(console.error);
-        setConnection(newConnection);
+        // newConnection.start().catch(console.error);
+        // setConnection(newConnection);
 
         return () => {
             newConnection.stop();
         };
     }, []);
 
-    const handleWarehouseSelect = (warehouse: Warehouse) => {
-        setSelectedWarehouses(prev => {
-            const newSelection = { ...prev };
-
-            switch (selectionMode) {
-                case 'start':
-                    newSelection.start = newSelection.start?.id === warehouse.id ? null : warehouse;
-                    break;
-                case 'waypoint':
-                    const index = newSelection.waypoints.findIndex(w => w.id === warehouse.id);
-                    if (index > -1) {
-                        newSelection.waypoints.splice(index, 1);
-                    } else {
-                        newSelection.waypoints.push(warehouse);
-                    }
-                    break;
-                case 'destination':
-                    newSelection.destination = newSelection.destination?.id === warehouse.id ? null : warehouse;
-                    break;
-            }
-
-            return newSelection;
-        });
-    };
-
     const handleWarehouseClick = (warehouse: Warehouse) => {
-        navigate(`/warehouse/${warehouse.id}`);
-    };
-
-    const handleStartTrip = async () => {
-        if (!connection || !selectedWarehouses.start || !selectedWarehouses.destination) {
-            return;
-        }
-
-        const waypoints = selectedWarehouses.waypoints.map(w => ({ lng: w.lng, lat: w.lat }));
-
-        try {
-            await connection.invoke('StartTripWithWaypoints',
-                selectedWarehouses.start.lng, selectedWarehouses.start.lat,
-                selectedWarehouses.destination.lng, selectedWarehouses.destination.lat,
-                waypoints, 12);
-
-            if (routeCarMarker.current) {
-                const carEl = routeCarMarker.current.getElement();
-                carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19a6 6 0 0 0 6-6V7h2a2 2 0 0 1 2 2v6"/><circle cx="20" cy="16" r="2"/><path d="M8 19a6 6 0 0 1-6-6V9a2 2 0 0 1 2-2h2"/><circle cx="4" cy="16" r="2"/></svg>';
-                carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white';
-            }
-        } catch (error) {
-            console.error('Failed to start trip:', error);
-        }
-    };
-
-    const handleStopTrip = async () => {
-        if (!connection) return;
-
-        try {
-            await connection.invoke('StopTrip');
-            if (routeCarMarker.current) {
-                const carEl = routeCarMarker.current.getElement();
-                carEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="6" height="6" x="9" y="9"/><rect width="20" height="20" x="2" y="2" rx="2"/></svg>';
-                carEl.className = 'text-3xl flex items-center justify-center w-8 h-8 bg-orange-500 rounded-full text-white';
-            }
-        } catch (error) {
-            console.error('Failed to stop trip:', error);
-        }
-    };
-
-    const handleClearRoute = () => {
-        setSelectedWarehouses({ start: null, waypoints: [], destination: null });
-
-        if (map.current && isRouteSourceAddedRef.current) {
-            map.current.removeLayer('route-line');
-            map.current.removeSource('route');
-            isRouteSourceAddedRef.current = false;
-        }
-
-        if (routeCarMarker.current) {
-            routeCarMarker.current.remove();
-            routeCarMarker.current = null;
-        }
-    };
-
-    const getWarehouseRole = (warehouse: Warehouse) => {
-        if (selectedWarehouses.start?.id === warehouse.id) return 'START';
-        if (selectedWarehouses.destination?.id === warehouse.id) return 'DESTINATION';
-        if (selectedWarehouses.waypoints.find(w => w.id === warehouse.id)) return 'WAYPOINT';
-        return null;
+        setSelectedWarehouseInfo(warehouse);
     };
 
     return (
-        <div className="flex h-full gap-4">
+        <div className="h-full">
             {/* Map */}
-            <div className="flex-1 relative">
+            <div className="w-full h-full">
                 <div ref={mapContainer} className="w-full h-full rounded-lg" />
             </div>
 
-            {/* Control Panel */}
-            <Card className="w-80 flex flex-col">
-                <CardHeader>
-                    <CardTitle>Route Planning</CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col gap-4">
-                    {/* Selection Mode */}
-                    <div>
-                        <Label className="text-sm font-medium mb-2 block">Selection Mode</Label>
-                        <RadioGroup value={selectionMode} onValueChange={(value: SelectionMode) => setSelectionMode(value)}>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="start" id="start" />
-                                <Label htmlFor="start">Start Point</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="waypoint" id="waypoint" />
-                                <Label htmlFor="waypoint">Waypoint</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="destination" id="destination" />
-                                <Label htmlFor="destination">Destination</Label>
-                            </div>
-                        </RadioGroup>
-                    </div>
-
-                    <Separator />
-
-                    {/* Warehouses */}
-                    <div className="flex-1">
-                        <Label className="text-sm font-medium mb-2 block">Warehouses</Label>
-                        <ScrollArea className="h-64">
-                            <div className="space-y-2">
-                                {warehouses.map((warehouse) => {
-                                    const role = getWarehouseRole(warehouse);
-                                    return (
-                                        <div
-                                            key={warehouse.id}
-                                            className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${role ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                                                }`}
-                                            onClick={() => handleWarehouseClick(warehouse)}
-                                            onContextMenu={(e) => {
-                                                e.preventDefault();
-                                                setSelectedWarehouseInfo(warehouse);
-                                            }}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg">
-                                                        {React.createElement(getWarehouseIcon(warehouse.type), { className: "h-5 w-5" })}
-                                                    </span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="font-medium text-sm truncate">{warehouse.name}</div>
-                                                        <div className="text-xs text-gray-500">{warehouse.capacity.toLocaleString()}m³</div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {role && (
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {role}
-                                                        </Badge>
-                                                    )}
-                                                    <Badge variant="outline" className={`text-xs ${getTypeColor(warehouse.type)}`}>
-                                                        {warehouse.type}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </ScrollArea>
-                    </div>
-
-                    <Separator />
-
-                    {/* Route Summary */}
-                    <div>
-                        <Label className="text-sm font-medium mb-2 block">Route</Label>
-                        <div className="text-sm space-y-1">
-                            {selectedWarehouses.start && (
-                                <div>Start: {selectedWarehouses.start.name}</div>
-                            )}
-                            {selectedWarehouses.waypoints.length > 0 && (
-                                <div>Waypoints: {selectedWarehouses.waypoints.map(w => w.name).join(', ')}</div>
-                            )}
-                            {selectedWarehouses.destination && (
-                                <div>Destination: {selectedWarehouses.destination.name}</div>
-                            )}
-                            {!selectedWarehouses.start && !selectedWarehouses.destination && (
-                                <div className="text-gray-500">Click warehouses to build your route</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Controls */}
-                    <div className="space-y-2">
-                        <Button
-                            onClick={handleStartTrip}
-                            className="w-full"
-                            disabled={!selectedWarehouses.start || !selectedWarehouses.destination}
-                        >
-                            Start Trip
-                        </Button>
-                        <div className="flex gap-2">
-                            <Button onClick={handleStopTrip} variant="outline" className="flex-1">
-                                Stop Trip
-                            </Button>
-                            <Button onClick={handleClearRoute} variant="outline" className="flex-1">
-                                Clear Route
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
             {/* Warehouse Info Drawer */}
             {selectedWarehouseInfo && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setSelectedWarehouseInfo(null)}>
-                    <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-lg" onClick={e => e.stopPropagation()}>
-                        <div className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-xl font-semibold flex items-center gap-2">
-                                    <span className="text-2xl">
-                                        {React.createElement(getWarehouseIcon(selectedWarehouseInfo.type), { className: "h-6 w-6" })}
-                                    </span>
-                                    {selectedWarehouseInfo.name}
-                                </h2>
-                                <Button variant="ghost" size="sm" onClick={() => setSelectedWarehouseInfo(null)}>
-                                    {React.createElement(X, { className: "h-4 w-4" })}
-                                </Button>
-                            </div>
+                <Sheet
+                    open={!!selectedWarehouseInfo}
+                    onOpenChange={(open) => {
+                        if (!open) setSelectedWarehouseInfo(null);
+                    }}
+                >
+                    <SheetContent side="right" className="w-[36rem] p-0">
+                        <div className="p-6 h-full flex flex-col">
+                            <SheetHeader className="mb-4">
+                                <div className="flex items-center justify-start">
+                                    <SheetTitle className="flex items-center gap-4">
+                                        <span className="text-2xl">
+                                            {selectedWarehouseInfo &&
+                                                React.createElement(
+                                                    getWarehouseIcon(selectedWarehouseInfo.type),
+                                                    { className: "h-5 w-5" }
+                                                )}
+                                        </span>
+                                        {selectedWarehouseInfo?.name}
+                                    </SheetTitle>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <Label className="font-medium">Type</Label>
-                                    <Badge className={`ml-2 ${getTypeColor(selectedWarehouseInfo.type)}`}>
-                                        {selectedWarehouseInfo.type}
-                                    </Badge>
                                 </div>
+                                <SheetDescription className="sr-only">
+                                    Warehouse quick info and navigation
+                                </SheetDescription>
+                            </SheetHeader>
 
-                                <div>
-                                    <Label className="font-medium">Capacity</Label>
-                                    <p className="text-sm mt-1">{selectedWarehouseInfo.capacity.toLocaleString()} m³</p>
+                            {selectedWarehouseInfo && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center">
+                                        <Label className="font-medium">Type</Label>
+                                        <Badge className={`ml-2 ${getTypeColor(selectedWarehouseInfo.type)}`}>
+                                            {selectedWarehouseInfo.type}
+                                        </Badge>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Capacity</Label>
+                                        <p className="text-sm mt-1">
+                                            {selectedWarehouseInfo.capacity.toLocaleString()} m³
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Location</Label>
+                                        <p className="text-sm mt-1">
+                                            {selectedWarehouseInfo.lng.toFixed(4)}, {selectedWarehouseInfo.lat.toFixed(4)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <Label className="font-medium">Description</Label>
+                                        <p className="text-sm mt-1">{selectedWarehouseInfo.description}</p>
+                                    </div>
                                 </div>
+                            )}
 
-                                <div>
-                                    <Label className="font-medium">Location</Label>
-                                    <p className="text-sm mt-1">
-                                        {selectedWarehouseInfo.lng.toFixed(4)}, {selectedWarehouseInfo.lat.toFixed(4)}
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <Label className="font-medium">Description</Label>
-                                    <p className="text-sm mt-1">{selectedWarehouseInfo.description}</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 text-xs text-gray-500">
-                                <p>Left-click to select for route, right-click for info</p>
-                            </div>
+                            <SheetFooter className="mt-auto space-y-2">
+                                {selectedWarehouseInfo && (
+                                    <>
+                                        <Button
+                                            onClick={() => navigate(`/warehouses/${selectedWarehouseInfo.id}`)}
+                                            className="w-full"
+                                            variant="default"
+                                        >
+                                            <Eye className="h-4 w-4 mr-2" />
+                                            Details
+                                        </Button>
+                                        <Button
+                                            onClick={() => navigate(`/warehouses/${selectedWarehouseInfo.id}/yard`)}
+                                            className="w-full"
+                                            variant="outline"
+                                        >
+                                            <MapPin className="h-4 w-4 mr-2" />
+                                            Yard
+                                        </Button>
+                                    </>
+                                )}
+                            </SheetFooter>
                         </div>
-                    </div>
-                </div>
+                    </SheetContent>
+                </Sheet>
             )}
         </div>
     );

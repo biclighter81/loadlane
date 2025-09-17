@@ -23,9 +23,9 @@ export default function App() {
             <Routes>
               <Route path="/" element={<MapPage />} />
               <Route path="/map" element={<MapPage />} />
-              <Route path="/warehouse" element={<WarehouseListPage />} />
-              <Route path="/warehouse/:id" element={<WarehouseDetailPage />} />
-              <Route path="/warehouse/:id/yard" element={<WarehouseYardPage />} />
+              <Route path="/warehouses" element={<WarehouseListPage />} />
+              <Route path="/warehouses/:id" element={<WarehouseDetailPage />} />
+              <Route path="/warehouses/:id/yard" element={<WarehouseYardPage />} />
               <Route path="*" element={<div>Page Not Found</div>} />
             </Routes>
           </div>

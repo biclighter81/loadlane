@@ -20,7 +20,7 @@ const items = [
     },
     {
         title: "Warehouses",
-        url: "/warehouse",
+        url: "/warehouses",
         icon: Building2,
     },
 ];
@@ -29,7 +29,7 @@ export function AppSidebar() {
     const location = useLocation();
 
     return (
-        <Sidebar className="w-80">
+        <Sidebar className="flex-grow">
             <SidebarHeader>
                 <div className="px-2 py-2 flex items-center gap-3">
                     <img

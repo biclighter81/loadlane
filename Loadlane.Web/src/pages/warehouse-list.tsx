@@ -90,7 +90,7 @@ export function WarehouseListPage() {
                                 <div className="pt-2">
                                     <Button
                                         className="w-full"
-                                        onClick={() => navigate(`/warehouse/${warehouse.id}`)}
+                                        onClick={() => navigate(`/warehouses/${warehouse.id}`)}
                                     >
                                         View Details
                                     </Button>
