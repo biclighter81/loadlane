@@ -2,6 +2,7 @@ using Application.Logging;
 using Application.Services;
 using Infrastructure.Context;
 using Infrastructure.Logging;
+using Loadlane.Api.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,22 @@ builder.Services.AddControllers();
 
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
-builder.Services.AddMemoryCache();
+
+// Cors
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("client", p => p
+        .WithOrigins("null", "http://localhost:5173")
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+});
+
+// Add Redis distributed cache instead of memory cache
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("redis");
+});
 
 // Configuration Options
 builder.Services.Configure<MapboxOptions>(builder.Configuration.GetSection("Mapbox"));
@@ -34,7 +50,11 @@ builder.Services.AddScoped<RouteSampler>();
 
 var app = builder.Build();
 
+app.UseCors("client");
 app.MapControllers();
+
+// Map Hubs
+app.MapHub<TripHub>("/hub/trip");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

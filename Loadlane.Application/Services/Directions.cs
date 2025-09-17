@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Application.Logging;
 using Application.Records;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 
 namespace Application.Services;
@@ -11,13 +11,13 @@ public class DirectionsService
 {
     private readonly MapboxOptions _opts;
     private readonly HttpClient _httpClient;
-    private readonly IMemoryCache _cache;
+    private readonly IDistributedCache _cache;
     private readonly ILoggerManager _logger;
 
     public DirectionsService(
         IOptions<MapboxOptions> opts,
         HttpClient httpClient,
-        IMemoryCache cache,
+        IDistributedCache cache,
         ILoggerManager logger
     )
     {
@@ -31,8 +31,15 @@ public class DirectionsService
     {
         // Cache key by endpoints + profile
         var key = $"route:{_opts.Profile}:{a.lng:F6},{a.lat:F6}->{b.lng:F6},{b.lat:F6}";
-        if (_cache.TryGetValue<Route>(key, out var cached))
-            return cached!;
+
+        // Try to get cached route
+        var cachedJson = await _cache.GetStringAsync(key);
+        if (!string.IsNullOrEmpty(cachedJson))
+        {
+            var cachedRoute = JsonSerializer.Deserialize<Route>(cachedJson);
+            if (cachedRoute != null)
+                return cachedRoute;
+        }
 
         // Request GeoJSON geometry to avoid decoding
         string LonLat(double lng, double lat) => $"{lng.ToString("G17", CultureInfo.InvariantCulture)},{lat.ToString("G17", CultureInfo.InvariantCulture)}";
@@ -58,8 +65,15 @@ public class DirectionsService
             coords.Add((c[0].GetDouble(), c[1].GetDouble()));
 
         var route = new Route(coords, distance, duration);
-        // cache for an hour (tune as needed)
-        _cache.Set(key, route, TimeSpan.FromHours(1));
+
+        // Cache for an hour (tune as needed) - serialize to JSON for Redis
+        var serializedRoute = JsonSerializer.Serialize(route);
+        var cacheOptions = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+        };
+        await _cache.SetStringAsync(key, serializedRoute, cacheOptions);
+
         return route;
     }
 }

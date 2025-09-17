@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Application.Services;
-using Microsoft.AspNet.SignalR;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Loadlane.Api.Hubs;
 
-public sealed class TripHub : Hub
+public class TripHub : Hub
 {
     private readonly DirectionsService _directions;
     private readonly RouteSampler _sampler;
@@ -62,8 +62,9 @@ public sealed class TripHub : Hub
         return Task.CompletedTask;
     }
 
-    public override Task OnDisconnected(bool stopCalled)
+    public override Task OnDisconnectedAsync(Exception? exception)
     {
-        return base.OnDisconnected(stopCalled);
+        _ = StopTrip();
+        return base.OnDisconnectedAsync(exception);
     }
 }

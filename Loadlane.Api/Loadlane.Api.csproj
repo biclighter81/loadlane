@@ -8,9 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.StackExchange.Redis" />
     <PackageReference Include="EFCore.NamingConventions" />
     <PackageReference Include="Microsoft.AspNet.SignalR" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
     <ProjectReference Include="..\Loadlane.Application\Loadlane.Application.csproj" />
     <ProjectReference Include="..\Loadlane.Domain\Loadlane.Domain.csproj" />
     <ProjectReference Include="..\Loadlane.Infrastructure\Loadlane.Infrastructure.csproj" />

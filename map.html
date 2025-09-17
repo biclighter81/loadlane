@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Emoji Driver</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@7.0.5/dist/browser/signalr.min.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.5.1/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.5.1/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body, html, #map { height: 100%; margin: 0; }
+    .emoji-marker { font-size: 28px; line-height: 28px; }
+    .panel {
+      position:absolute; top:10px; left:10px; background:#fff; padding:8px 10px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15);
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; z-index:1;
+    }
+    .panel input { width: 120px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="panel">
+    <label>A (lng,lat): <input id="a" value="13.4050,52.5200"></label>
+    <label>B (lng,lat): <input id="b" value="13.3777,52.5163"></label>
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+  </div>
+
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ'; // for tiles only
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [13.4050, 52.52],
+      zoom: 12
+    });
+
+    const el = document.createElement('div');
+    el.className = 'emoji-marker';
+    el.textContent = '🚗';
+    const marker = new mapboxgl.Marker({ element: el });
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('http://localhost:5119/hub/trip') // 👈 your API on port 5119
+      .withAutomaticReconnect()
+      .build();
+
+    let routeSourceAdded = false;
+
+    connection.on('Route', payload => {
+      const coords = payload.coordinates;
+      const line = {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: coords }
+      };
+
+      if (!routeSourceAdded) {
+        map.addSource('route', { type: 'geojson', data: line });
+        map.addLayer({
+          id: 'route-line',
+          type: 'line',
+          source: 'route',
+          paint: { 'line-color': '#3b82f6', 'line-width': 5 }
+        });
+        routeSourceAdded = true;
+      } else {
+        map.getSource('route').setData(line);
+      }
+
+      // fit map & drop marker at start
+      const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(bounds, { padding: 60, duration: 0 });
+      marker.setLngLat(coords[0]).addTo(map);
+    });
+
+    connection.on('Position', p => {
+        debugger;
+      marker.setLngLat([p.lng, p.lat]);
+    });
+
+    connection.on('TripCompleted', () => {
+      el.textContent = '🏁';
+    });
+
+    connection.start().catch(console.error);
+
+    document.getElementById('start').onclick = async () => {
+      const [alng, alat] = document.getElementById('a').value.split(',').map(Number);
+      const [blng, blat] = document.getElementById('b').value.split(',').map(Number);
+      // speedMps optional (e.g., 8 for ~29 km/h)
+      await connection.invoke('StartTrip', alng, alat, blng, blat, 12);
+      el.textContent = '🚗';
+    };
+
+    document.getElementById('stop').onclick = async () => {
+      await connection.invoke('StopTrip');
+      el.textContent = '⏸️';
+    };
+  </script>
+</body>
+</html>
