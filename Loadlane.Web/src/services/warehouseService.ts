@@ -8,7 +8,7 @@ import type {
   GateSimpleResponse
 } from '../types/warehouse';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:5119/api';
 
 class WarehouseService {
   private async handleResponse<T>(response: Response): Promise<T> {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -15,15 +16,44 @@ import {
     Loader2,
     Edit,
     Plus,
-    Settings
+    Settings,
+    MoreHorizontal
 } from "lucide-react";
 import { useWarehouse, useWarehouseGates } from "../hooks/useWarehouse";
+import { GateFormDialog } from "../components/forms/gate-form-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import type { CreateGateRequest, UpdateGateRequest, GateSimpleResponse } from "../types/warehouse";
 
 export function WarehouseDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { warehouse, loading: warehouseLoading, error: warehouseError } = useWarehouse(id);
-    const { gates, loading: gatesLoading, error: gatesError } = useWarehouseGates(id);
+    const { gates, loading: gatesLoading, error: gatesError, createGate, updateGate, deleteGate } = useWarehouseGates(id);
+
+    const [isCreateGateDialogOpen, setIsCreateGateDialogOpen] = useState(false);
+    const [editingGate, setEditingGate] = useState<GateSimpleResponse | null>(null);
+
+    const handleCreateGate = async (data: CreateGateRequest) => {
+        await createGate(data);
+    };
+
+    const handleUpdateGate = async (data: UpdateGateRequest) => {
+        if (editingGate) {
+            await updateGate(editingGate.id, data);
+            setEditingGate(null);
+        }
+    };
+
+    const handleDeleteGate = async (gateId: string) => {
+        if (confirm('Are you sure you want to delete this gate?')) {
+            await deleteGate(gateId);
+        }
+    };
 
     if (warehouseLoading) {
         return (
@@ -158,7 +188,7 @@ export function WarehouseDetailPage() {
                     <CardContent className="space-y-4">
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium">Gate Status</span>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={() => setIsCreateGateDialogOpen(true)}>
                                 <Plus className="h-4 w-4 mr-1" />
                                 Add Gate
                             </Button>
@@ -182,11 +212,37 @@ export function WarehouseDetailPage() {
                                     <div key={gate.id} className="flex items-center justify-between p-2 border rounded">
                                         <div className="flex items-center space-x-2">
                                             <div className={`w-2 h-2 rounded-full ${gate.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                            <span className="text-sm font-medium">Gate {gate.number}</span>
+                                            <div>
+                                                <span className="text-sm font-medium">Gate {gate.number}</span>
+                                                {gate.description && (
+                                                    <p className="text-xs text-muted-foreground">{gate.description}</p>
+                                                )}
+                                            </div>
                                         </div>
-                                        <Badge variant={gate.isActive ? "default" : "secondary"}>
-                                            {gate.isActive ? "Active" : "Inactive"}
-                                        </Badge>
+                                        <div className="flex items-center space-x-2">
+                                            <Badge variant={gate.isActive ? "default" : "secondary"}>
+                                                {gate.isActive ? "Active" : "Inactive"}
+                                            </Badge>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => setEditingGate(gate)}>
+                                                        <Edit className="h-4 w-4 mr-2" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDeleteGate(gate.id)}
+                                                        className="text-destructive"
+                                                    >
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -251,6 +307,29 @@ export function WarehouseDetailPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Gate Form Dialogs */}
+            <GateFormDialog
+                open={isCreateGateDialogOpen}
+                onClose={() => setIsCreateGateDialogOpen(false)}
+                onSubmit={handleCreateGate}
+                mode="create"
+            />
+
+            <GateFormDialog
+                open={!!editingGate}
+                onClose={() => setEditingGate(null)}
+                onSubmit={handleUpdateGate}
+                gate={editingGate ? {
+                    id: editingGate.id,
+                    number: editingGate.number,
+                    description: editingGate.description,
+                    isActive: editingGate.isActive,
+                    warehouse: undefined,
+                    createdUtc: editingGate.createdUtc
+                } : undefined}
+                mode="edit"
+            />
         </div>
     );
 }

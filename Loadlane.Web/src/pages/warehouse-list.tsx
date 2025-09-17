@@ -1,14 +1,21 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Building2, Package, MapPin, Users, Clock, AlertCircle, Plus, Loader2 } from "lucide-react";
 import { useWarehouses } from "../hooks/useWarehouse";
-import type { WarehouseResponse } from "../types/warehouse";
+import { WarehouseFormDialog } from "../components/forms/warehouse-form-dialog";
+import type { WarehouseResponse, CreateWarehouseRequest } from "../types/warehouse";
 
 export function WarehouseListPage() {
     const navigate = useNavigate();
-    const { warehouses, loading, error, refetch } = useWarehouses();
+    const { warehouses, loading, error, refetch, createWarehouse } = useWarehouses();
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+    const handleCreateWarehouse = async (data: CreateWarehouseRequest) => {
+        await createWarehouse(data);
+    };
 
     if (loading) {
         return (
@@ -48,7 +55,7 @@ export function WarehouseListPage() {
                             Manage and monitor all warehouse facilities across your network.
                         </p>
                     </div>
-                    <Button onClick={() => navigate('/warehouses/new')}>
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Warehouse
                     </Button>
@@ -62,7 +69,7 @@ export function WarehouseListPage() {
                     <p className="text-muted-foreground mb-4">
                         Get started by creating your first warehouse.
                     </p>
-                    <Button onClick={() => navigate('/warehouses/new')}>
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Warehouse
                     </Button>
@@ -78,6 +85,12 @@ export function WarehouseListPage() {
                     ))}
                 </div>
             )}
+
+            <WarehouseFormDialog
+                open={isCreateDialogOpen}
+                onClose={() => setIsCreateDialogOpen(false)}
+                onSubmit={handleCreateWarehouse}
+            />
         </div>
     );
 }
