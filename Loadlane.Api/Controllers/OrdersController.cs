@@ -66,11 +66,11 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetOrders(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetOrders([FromQuery] bool? includeCompleted, CancellationToken cancellationToken)
     {
         try
         {
-            var orders = await _orderService.GetAllOrdersAsync(cancellationToken);
+            var orders = await _orderService.GetAllOrdersAsync(includeCompleted, cancellationToken);
             return Ok(orders);
         }
         catch (Exception ex)

@@ -17,6 +17,7 @@ public class TripHub : Hub
     private readonly SimStateStore _simStateStore;
     private readonly GlobalSimulationStore _globalSimStore;
     private readonly IHubContext<TripHub> _hubContext;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
 
     // Track running simulations by transportId
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _activeSimulations = new();
@@ -25,7 +26,8 @@ public class TripHub : Hub
     private readonly IGroupManager _groups;
 
     public TripHub(DirectionsService directions, IOrderService orderService, RouteSampler sampler,
-                   SimStateStore simStateStore, GlobalSimulationStore globalSimStore, IHubContext<TripHub> hubContext)
+                   SimStateStore simStateStore, GlobalSimulationStore globalSimStore, IHubContext<TripHub> hubContext,
+                   IServiceScopeFactory serviceScopeFactory)
     {
         _directions = directions;
         _orderService = orderService;
@@ -33,6 +35,7 @@ public class TripHub : Hub
         _simStateStore = simStateStore;
         _globalSimStore = globalSimStore;
         _hubContext = hubContext;
+        _serviceScopeFactory = serviceScopeFactory;
         _groups = _hubContext.Groups;
     }
 
@@ -187,8 +190,18 @@ public class TripHub : Hub
                 transportId
             }, cancellationToken);
 
-            // Update DB state to 'Delivered'
-
+            // Update DB state to 'Completed' using a new scope
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+                await orderService.UpdateTransportStatusAsync(transportId, Loadlane.Domain.Enums.TransportStatus.Completed, cancellationToken);
+                Console.WriteLine($"Transport {transportId} status updated to Completed in database");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to update transport {transportId} status to Completed: {ex.Message}");
+            }
 
             // Clean up simulation state
             await _simStateStore.RemoveAsync(transportId);
