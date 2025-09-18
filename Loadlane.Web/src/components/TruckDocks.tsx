@@ -74,20 +74,20 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
         
         {/* Halle - Dach */}
         <Box args={[hallWidth + 2, 0.3, 8]} position={[0, 10.5, -12]} castShadow>
-          <meshStandardMaterial color="#4B0082" />
+          <meshStandardMaterial color="#0466dd" />
         </Box>
         
         {/* Halle - Seitenwände */}
         <Box args={[0.3, 13, 6]} position={[-hallWidth/2 - 0.15, 4, -12]} castShadow>
-          <meshStandardMaterial color="#6A5ACD" />
+          <meshStandardMaterial color="#0466dd" />
         </Box>
         <Box args={[0.3, 13, 6]} position={[hallWidth/2 + 0.15, 4, -12]} castShadow>
-          <meshStandardMaterial color="#6A5ACD" />
+          <meshStandardMaterial color="#0466dd" />
         </Box>
         
         {/* Halle - Rückwand */}
         <Box args={[hallWidth, 13, 0.3]} position={[0, 4, -15]} castShadow>
-          <meshStandardMaterial color="#6A5ACD" />
+          <meshStandardMaterial color="#0466dd" />
         </Box>
         
         {/* Render alle Docks */}
