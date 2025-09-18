@@ -77,7 +77,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '', getTra
         );
 
         if (nearestWarehouse) {
-            navigate(`/warehouses/${nearestWarehouse.id}/yard?transportId=${order.transport?.transportId}`);
+            navigate(`/warehouses/${nearestWarehouse.id}/yard?transportid=${order.transport?.transportId}`);
         }
     };
 

@@ -22,7 +22,11 @@ public sealed class OrderRepository : IOrderRepository
     public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.Orders
+
             .Include(o => o.Article)
+            //include Vehicle via Transport
+            .Include(o => o.Transports)
+                .ThenInclude(t => t.Vehicle)
             .Include(o => o.Transports)
                 .ThenInclude(t => t.Carrier)
             .Include(o => o.Transports)
@@ -41,6 +45,8 @@ public sealed class OrderRepository : IOrderRepository
     {
         return await _context.Orders
             .Include(o => o.Article)
+            .Include(o => o.Transports)
+                .ThenInclude(t => t.Vehicle)
             .Include(o => o.Transports)
                 .ThenInclude(t => t.Carrier)
             .Include(o => o.Transports)

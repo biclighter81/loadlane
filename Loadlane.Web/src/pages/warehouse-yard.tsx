@@ -39,7 +39,7 @@ const mapDockingToTruck = (docking: DockingDto, index: number): TruckData | null
     }
 
     const truck = {
-        id: parseInt(docking.vehicle.id) || index + 1, // Fallback auf Index wenn ID nicht numerisch
+        id: docking.vehicle.id,
         text: docking.vehicle.carrier,
         numberPlate: docking.vehicle.licensePlate,
         targetDock: docking.gate.number
@@ -53,13 +53,13 @@ export default function WarehouseYardPage() {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const transportId = searchParams.get('transportId');
+    const transportId = searchParams.get('transportid');
 
     const [warehouse, setWarehouse] = useState<WarehouseResponse | null>(null);
     const [order, setOrder] = useState<OrderResponse | null>(null);
     const [docks, setDocks] = useState<DockData[]>([]);
     const [trucks, setTrucks] = useState<TruckData[]>([]);
-    const [removingTrucks, setRemovingTrucks] = useState<number[]>([]);
+    const [removingTrucks, setRemovingTrucks] = useState<string[]>([]);
     const [waypointId, setWaypointId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -232,6 +232,16 @@ export default function WarehouseYardPage() {
                         // API-Anfrage senden, um Gate-Status zu aktualisieren
                         try {
                             await yardService.updateGateStatus(waypointId, dockId, transportId);
+                            // push Vehicle to trucks list from foundorder.transport.vehicle
+                            if (order && order.transport.vehicle) {
+                                const newTruck: TruckData = {
+                                    id: order.transport.vehicle.id,
+                                    text: order.transport.carrier?.name || 'Unbekannt',
+                                    numberPlate: order.transport.vehicle.licencePlate,
+                                    targetDock: dockId
+                                };
+                                setTrucks(prev => [...prev, newTruck]);
+                            }
                         } catch (error) {
                             console.error('Fehler beim Aktualisieren des Gate-Status:', error);
                         }
@@ -245,7 +255,7 @@ export default function WarehouseYardPage() {
                     // API-Anfrage senden, um den LKW offiziell zu entfernen
                     if (waypointId) {
                         try {
-                            await yardService.removeDockedVehicle(waypointId, truckData.id);
+                            await yardService.removeDockedVehicle(waypointId, truckData.id, transportId || '');
                         } catch (error) {
                             console.error('Fehler beim Entfernen des Fahrzeugs:', error);
                             // Bei Fehler den LKW wieder aus der Removal-Liste entfernen

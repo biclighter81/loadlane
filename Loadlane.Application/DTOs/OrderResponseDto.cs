@@ -17,6 +17,7 @@ public sealed record TransportResponseDto(
     Guid Id,
     string TransportId,
     TransportStatus Status,
+    VehicleResponseDto? Vehicle,
     CarrierResponseDto? Carrier,
     LocationResponseDto? StartLocation,
     LocationResponseDto? DestinationLocation,
