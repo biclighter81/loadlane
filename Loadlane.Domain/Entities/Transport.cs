@@ -92,9 +92,6 @@ public sealed class Transport
 
     public void StartTransport()
     {
-        if (Status != TransportStatus.Accepted)
-            throw new InvalidOperationException("Transport must be accepted to start");
-
         Status = TransportStatus.InProgress;
     }
 

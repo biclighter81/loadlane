@@ -2,6 +2,7 @@ using Application.Services;
 using Loadlane.Application.Abstractions.Persistence;
 using Loadlane.Application.DTOs;
 using Loadlane.Domain.Entities;
+using Loadlane.Domain.Enums;
 
 namespace Loadlane.Application.Services;
 
@@ -14,6 +15,7 @@ public interface IOrderService
     Task UpdateTransportStatusAsync(string transportId, Domain.Enums.TransportStatus status, CancellationToken cancellationToken = default);
     Task MarkTransportAsArrivedAsync(string transportId, CancellationToken cancellationToken = default);
     Task HandleTransportArrivalAsync(string transportId, double currentLatitude, double currentLongitude, CancellationToken cancellationToken = default);
+    Task<bool> ContinueTransportToNextWaypointAsync(string transportId, CancellationToken cancellationToken = default);
 }
 
 public sealed class OrderService : IOrderService
@@ -219,18 +221,37 @@ public sealed class OrderService : IOrderService
                 currentWaypoint.RecordArrival(DateTime.UtcNow);
                 Console.WriteLine($"Recorded arrival at waypoint with location: {currentWaypoint.Location.City}");
 
-                // Check if warehouse has gates
-                if (warehouse.Gates.Any(g => g.IsActive))
+                // Check if warehouse has gates and this is not the final destination
+                var isAtFinalDestination = IsAtFinalDestination(transport, currentWaypoint);
+
+                if (warehouse.Gates.Any(g => g.IsActive) && !isAtFinalDestination)
                 {
-                    // Set status to waiting for gate assignment
+                    // Set status to waiting for gate assignment at intermediate waypoint
                     transport.SetWaiting();
-                    Console.WriteLine($"Transport {transportId} is waiting for gate assignment at {warehouse.Name}");
+                    Console.WriteLine($"Transport {transportId} is waiting for gate assignment at intermediate waypoint {warehouse.Name}");
+                }
+                else if (warehouse.Gates.Any(g => g.IsActive) && isAtFinalDestination)
+                {
+                    // At final destination with gates - set waiting
+                    transport.SetWaiting();
+                    Console.WriteLine($"Transport {transportId} is waiting for gate assignment at final destination {warehouse.Name}");
                 }
                 else
                 {
-                    // No gates, complete the waypoint immediately
-                    transport.Complete();
-                    Console.WriteLine($"Transport {transportId} completed arrival at {warehouse.Name} (no gates)");
+                    // No gates or special handling - check if we need to continue to next waypoint
+                    var nextWaypoint = GetNextWaypoint(transport, currentWaypoint);
+                    if (nextWaypoint != null)
+                    {
+                        // Continue to next waypoint (transport stays InProgress)
+                        Console.WriteLine($"Transport {transportId} continuing to next waypoint from {warehouse.Name}");
+                        // Transport simulation will need to be restarted for next leg
+                    }
+                    else
+                    {
+                        // This is the final destination, complete the transport
+                        transport.Complete();
+                        Console.WriteLine($"Transport {transportId} completed at final destination {warehouse.Name}");
+                    }
                 }
             }
         }
@@ -242,6 +263,63 @@ public sealed class OrderService : IOrderService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> ContinueTransportToNextWaypointAsync(string transportId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(transportId))
+            throw new ArgumentException("TransportId cannot be null or empty", nameof(transportId));
+
+        // Find the order and transport
+        var orders = await _orderRepository.GetAllAsync(cancellationToken);
+        var order = orders.FirstOrDefault(o => o.Transports.Any(t => t.TransportId == transportId));
+
+        if (order == null)
+            return false;
+
+        var transport = order.Transports.First(t => t.TransportId == transportId);
+
+        // Only continue if transport is currently waiting
+        if (transport.Status != TransportStatus.Waiting)
+            return false;
+
+        // Find current waypoint (the one with arrival but no departure)
+        var currentWaypoint = transport.Stopps
+            .Where(s => s.HasArrived && !s.HasDeparted)
+            .OrderByDescending(s => s.ActualArrival)
+            .FirstOrDefault() as Waypoint;
+
+        // Check destination too if no waiting stopp found
+        if (currentWaypoint == null && transport.Destination != null &&
+            transport.Destination.HasArrived && !transport.Destination.HasDeparted)
+        {
+            currentWaypoint = transport.Destination;
+        }
+
+        if (currentWaypoint == null)
+            return false;
+
+        // Record departure from current waypoint
+        currentWaypoint.RecordDeparture(DateTime.UtcNow);
+
+        // Determine next action
+        var nextWaypoint = GetNextWaypoint(transport, currentWaypoint);
+
+        if (nextWaypoint != null)
+        {
+            // Continue to next waypoint
+            transport.StartTransport(); // Set back to InProgress
+            Console.WriteLine($"Transport {transportId} continuing from waypoint to next destination");
+        }
+        else
+        {
+            // No more waypoints, complete the transport
+            transport.Complete();
+            Console.WriteLine($"Transport {transportId} completed - no more waypoints");
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     private Waypoint? DetermineCurrentWaypoint(Transport transport, double currentLatitude, double currentLongitude)
@@ -271,6 +349,41 @@ public sealed class OrderService : IOrderService
     {
         return Math.Abs(location.Latitude - currentLatitude) <= tolerance &&
                Math.Abs(location.Longitude - currentLongitude) <= tolerance;
+    }
+
+    private bool IsAtFinalDestination(Transport transport, Waypoint currentWaypoint)
+    {
+        // Check if current waypoint is the destination (final waypoint)
+        return transport.Destination != null && transport.Destination.Id == currentWaypoint.Id;
+    }
+
+    private Waypoint? GetNextWaypoint(Transport transport, Waypoint currentWaypoint)
+    {
+        // If current waypoint is a stopp, find the next stopp in sequence
+        if (currentWaypoint is Stopp currentStopp)
+        {
+            var nextStopp = transport.Stopps
+                .Where(s => s.SequenceNumber > currentStopp.SequenceNumber)
+                .OrderBy(s => s.SequenceNumber)
+                .FirstOrDefault();
+
+            if (nextStopp != null)
+            {
+                return nextStopp;
+            }
+
+            // No more stopps, return destination as next waypoint
+            return transport.Destination;
+        }
+
+        // If current waypoint is the destination, there's no next waypoint
+        if (currentWaypoint == transport.Destination)
+        {
+            return null;
+        }
+
+        // This shouldn't happen in normal flow, but handle gracefully
+        return transport.Destination;
     }
 
     private async Task<Article> GetOrCreateArticleAsync(ArticleDto articleDto, CancellationToken cancellationToken)
