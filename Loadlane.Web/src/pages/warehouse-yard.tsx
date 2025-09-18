@@ -39,7 +39,7 @@ const mapDockingToTruck = (docking: DockingDto, index: number): TruckData | null
     }
 
     const truck = {
-        id: parseInt(docking.vehicle.id) || index + 1, // Fallback auf Index wenn ID nicht numerisch
+        id: docking.vehicle.id,
         text: docking.vehicle.carrier,
         numberPlate: docking.vehicle.licensePlate,
         targetDock: docking.gate.number
@@ -53,13 +53,13 @@ export default function WarehouseYardPage() {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const transportId = searchParams.get('transportId');
+    const transportId = searchParams.get('transportid');
 
     const [warehouse, setWarehouse] = useState<WarehouseResponse | null>(null);
     const [order, setOrder] = useState<OrderResponse | null>(null);
     const [docks, setDocks] = useState<DockData[]>([]);
     const [trucks, setTrucks] = useState<TruckData[]>([]);
-    const [removingTrucks, setRemovingTrucks] = useState<number[]>([]);
+    const [removingTrucks, setRemovingTrucks] = useState<string[]>([]);
     const [waypointId, setWaypointId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

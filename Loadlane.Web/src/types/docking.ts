@@ -40,9 +40,9 @@ export interface TruckProps {
 export interface TruckDocksProps {
   docks: DockData[];
   trucks?: TruckData[];
-  removingTrucks?: number[];
+  removingTrucks?: string[];
   warehouseText?: string;
-  onTruckRemovalComplete?: (truckId: number) => void;
+  onTruckRemovalComplete?: (truckId: string) => void;
   onDockStatusChange?: (dockId: number, newStatus: DockStatusType) => void;
   onTruckClick?: (truckData: TruckData, dockId: number) => void;
 }
