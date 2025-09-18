@@ -14,47 +14,47 @@ import { waypointService } from '../services/waypointService';
 
 // Hilfsfunktion um Status basierend auf isActive zu bestimmen
 const getDockStatus = (gate: GateSimpleResponse): DockStatusType => {
-  return gate.isActive ? DockStatus.FREE : DockStatus.BLOCKED;
+    return gate.isActive ? DockStatus.FREE : DockStatus.BLOCKED;
 };
 
 // Funktion um GateSimpleResponse zu DockData zu erweitern
 const enrichGateWithStatus = (gate: GateSimpleResponse): DockData => ({
-  ...gate,
-  status: getDockStatus(gate)
+    ...gate,
+    status: getDockStatus(gate)
 });
 
 // Mapping-Funktion von DockingDto zu TruckData
 const mapDockingToTruck = (docking: DockingDto, index: number): TruckData | null => {
-  console.log(`Mapping docking ${index}:`, {
-    hasVehicle: !!docking.vehicle,
-    hasDepartureTime: !!docking.departureTime,
-    vehicle: docking.vehicle,
-    departureTime: docking.departureTime
-  });
+    console.log(`Mapping docking ${index}:`, {
+        hasVehicle: !!docking.vehicle,
+        hasDepartureTime: !!docking.departureTime,
+        vehicle: docking.vehicle,
+        departureTime: docking.departureTime
+    });
 
-  // Nur Fahrzeuge zurückgeben, die tatsächlich gedockt sind (Vehicle vorhanden und kein DepartureTime)
-  if (!docking.vehicle || docking.departureTime) {
-    console.log(`Filtering out docking ${index}: no vehicle or has departure time`);
-    return null;
-  }
+    // Nur Fahrzeuge zurückgeben, die tatsächlich gedockt sind (Vehicle vorhanden und kein DepartureTime)
+    if (!docking.vehicle || docking.departureTime) {
+        console.log(`Filtering out docking ${index}: no vehicle or has departure time`);
+        return null;
+    }
 
-  const truck = {
-    id: parseInt(docking.vehicle.id) || index + 1, // Fallback auf Index wenn ID nicht numerisch
-    text: docking.vehicle.carrier,
-    numberPlate: docking.vehicle.licensePlate,
-    targetDock: docking.gate.number
-  };
-  
-  console.log(`Successfully mapped truck ${index}:`, truck);
-  return truck;
+    const truck = {
+        id: parseInt(docking.vehicle.id) || index + 1, // Fallback auf Index wenn ID nicht numerisch
+        text: docking.vehicle.carrier,
+        numberPlate: docking.vehicle.licensePlate,
+        targetDock: docking.gate.number
+    };
+
+    console.log(`Successfully mapped truck ${index}:`, truck);
+    return truck;
 };
 
 export default function WarehouseYardPage() {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const transportId = searchParams.get('transport_id');
-    
+    const transportId = searchParams.get('transportId');
+
     const [warehouse, setWarehouse] = useState<WarehouseResponse | null>(null);
     const [order, setOrder] = useState<OrderResponse | null>(null);
     const [docks, setDocks] = useState<DockData[]>([]);
@@ -82,10 +82,10 @@ export default function WarehouseYardPage() {
                     Promise<GateSimpleResponse[]>,
                     Promise<DockingDto[]>
                 ] = [
-                    warehouseService.getWarehouseById(id),
-                    warehouseService.getWarehouseGates(id),
-                    yardService.getDockedVehicles(id)
-                ];
+                        warehouseService.getWarehouseById(id),
+                        warehouseService.getWarehouseGates(id),
+                        yardService.getDockedVehicles(id)
+                    ];
                 const [warehouseData, gatesData, yardData] = await Promise.all(promises);
 
                 setWarehouse(warehouseData);
@@ -98,12 +98,12 @@ export default function WarehouseYardPage() {
                     //    setOrder(foundOrder);
                     //}
                     const allOrders = await orderService.getAllOrders();
-                    const foundOrder = allOrders.find(order => 
+                    const foundOrder = allOrders.find(order =>
                         order.transport.transportId === transportId
                     );
                     if (foundOrder) {
                         setOrder(foundOrder);
-                        
+
                         // Lade und gebe Waypoints für diesen Transport aus
                         try {
                             const waypoints = (await waypointService.getWaypointsByTransportId(foundOrder.transport.id));
@@ -116,15 +116,15 @@ export default function WarehouseYardPage() {
                                 console.log('No waypoint found for this warehouse.');
                             }
                             // Zusätzliche Details der Waypoints ausgeben
-                           
+
                         } catch (error) {
                             console.error('Fehler beim Laden der Waypoints:', error);
                         }
                     }
                 }
 
-       
-            
+
+
                 // Erweitere Gates mit Status zu Docks
                 const enrichedDocks = gatesData.map(enrichGateWithStatus);
                 setDocks(enrichedDocks);
@@ -188,7 +188,7 @@ export default function WarehouseYardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
-                
+
                 {order && (
                     <div className="flex-1 ml-4">
                         <h1 className="text-xl font-semibold text-gray-900">
@@ -197,7 +197,7 @@ export default function WarehouseYardPage() {
                     </div>
                 )}
             </div>
-            
+
             {/* Transport-Details wenn transport_id Parameter vorhanden ist */}
             {order && (
                 <div className="bg-blue-50 border-b border-blue-200 px-6 py-3 mb-4">
@@ -214,7 +214,7 @@ export default function WarehouseYardPage() {
                     </div>
                 </div>
             )}
-            
+
             <TruckDocks
                 docks={docks}
                 trucks={trucks}

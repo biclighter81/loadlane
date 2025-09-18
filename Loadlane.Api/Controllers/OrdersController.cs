@@ -98,13 +98,31 @@ public class OrdersController : ControllerBase
                 return NotFound(new { error = $"Transport '{transportId}' not found or not in waiting state" });
             }
 
-            // Broadcast to SignalR that transport has departed and is continuing
-            await _hubContext.Clients.All.SendAsync("TransportContinued", new { transportId }, cancellationToken);
+            // Check if transport was completed or is continuing
+            var orders = await _orderService.GetAllOrdersAsync();
+            var order = orders.FirstOrDefault(o => o.Transport.TransportId == transportId);
 
-            // Restart the simulation by creating a TripHub instance and calling StartWaitingTransport
-            await RestartTransportSimulation(transportId, cancellationToken);
+            if (order?.Transport.Status == Domain.Enums.TransportStatus.Completed)
+            {
+                // Transport was completed - broadcast completion event
+                await _hubContext.Clients.All.SendAsync("TransportCompleted", new
+                {
+                    transportId,
+                    order = order
+                }, cancellationToken);
 
-            return Ok(new { message = $"Transport '{transportId}' continued to next waypoint" });
+                return Ok(new { message = $"Transport '{transportId}' completed successfully" });
+            }
+            else
+            {
+                // Transport is continuing - broadcast continuation event and restart simulation
+                await _hubContext.Clients.All.SendAsync("TransportContinued", new { transportId }, cancellationToken);
+
+                // Restart the simulation by creating a TripHub instance and calling StartWaitingTransport
+                await RestartTransportSimulation(transportId, cancellationToken);
+
+                return Ok(new { message = $"Transport '{transportId}' continued to next waypoint" });
+            }
         }
         catch (Exception ex)
         {
