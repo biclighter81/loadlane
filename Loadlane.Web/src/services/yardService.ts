@@ -39,7 +39,7 @@ class YardService {
    * @param waypointId - The ID of the waypoint
    * @param vehicleId - The ID of the vehicle/truck to remove
    */
-  async removeDockedVehicle(waypointId: string, vehicleId: number): Promise<void> {
+  async removeDockedVehicle(waypointId: string, vehicleId: string): Promise<void> {
     console.log(`Removing docked vehicle ${vehicleId} from waypoint ${waypointId}`);
     
     const response = await fetch(`${API_BASE_URL}/yard/remove-vehicle`, {

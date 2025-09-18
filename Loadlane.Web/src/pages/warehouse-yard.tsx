@@ -232,6 +232,16 @@ export default function WarehouseYardPage() {
                     // API-Anfrage senden, um Gate-Status zu aktualisieren
                     try {
                         await yardService.updateGateStatus(waypointId, dockId, transportId);
+                        // push Vehicle to trucks list from foundorder.transport.vehicle
+                        if (order && order.transport.vehicle) {
+                            const newTruck: TruckData = {
+                                id: order.transport.vehicle.id,
+                                text: order.transport.carrier?.name || 'Unbekannt',
+                                numberPlate: order.transport.vehicle.licencePlate,
+                                targetDock: dockId
+                            };
+                            setTrucks(prev => [...prev, newTruck]);
+                        }
                     } catch (error) {
                         console.error('Fehler beim Aktualisieren des Gate-Status:', error);
                     }

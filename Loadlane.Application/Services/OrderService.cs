@@ -440,6 +440,7 @@ public sealed class OrderService : IOrderService
                 transport.Id,
                 transport.TransportId,
                 transport.Status,
+                transport.Vehicle != null ? MapVehicleResponse(transport.Vehicle) : null,
                 transport.Carrier != null ? MapCarrierResponse(transport.Carrier) : null,
                 transport.Start != null ? MapLocationResponse(transport.Start.Location) : null,
                 transport.Destination != null ? MapLocationResponse(transport.Destination.Location) : null,
@@ -464,6 +465,15 @@ public sealed class OrderService : IOrderService
             location.PostCode,
             location.Latitude,
             location.Longitude);
+    }
+    private static VehicleResponseDto MapVehicleResponse(Vehicle vehicle)
+    {
+        return new VehicleResponseDto(
+            vehicle.Id,
+            vehicle.LicencePlate,
+            vehicle.LicencePlate,
+            null,
+            vehicle.CreatedUtc);
     }
 
     private static CarrierResponseDto MapCarrierResponse(Carrier carrier)

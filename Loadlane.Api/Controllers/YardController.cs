@@ -70,4 +70,4 @@ public class YardController : ControllerBase
 
 // Request DTOs for the new endpoints
 public record UpdateGateStatusRequest(string WaypointId, int DockId, string? TransportId);
-public record RemoveVehicleRequest(string WaypointId, int VehicleId);
+public record RemoveVehicleRequest(string WaypointId, string VehicleId);

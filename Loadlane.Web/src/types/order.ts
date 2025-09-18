@@ -96,7 +96,13 @@ export interface TransportResponse {
   carrier?: CarrierResponse;
   startLocation?: LocationResponse;
   destinationLocation?: LocationResponse;
+  vehicle?: VehicleResponse | null;
   stopps: StoppResponse[];
+  createdUtc: string;
+}
+export interface VehicleResponse {
+  id: string;
+  licencePlate: string;
   createdUtc: string;
 }
 

@@ -16,7 +16,7 @@ export interface DockData {
 }
 
 export interface TruckData {
-  id: number;
+  id: string;
   text: string;
   numberPlate: string;
   targetDock: number;
