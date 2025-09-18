@@ -1,5 +1,5 @@
 using Loadlane.Application.DTOs;
-using Loadlane.Application.Services;
+using Loadlane.Application.Services.Waypoints;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Loadlane.Api.Controllers;
@@ -8,34 +8,32 @@ namespace Loadlane.Api.Controllers;
 [Route("api/yard")]
 public class YardController : ControllerBase
 {
+    private readonly IWaypointService _waypointService;
+
+    public YardController(IWaypointService waypointService)
+    {
+        _waypointService = waypointService;
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetDockedVehicles([FromQuery] string warehouseId, CancellationToken cancellationToken)
     {
-
-        //return dummy data for now (DockingDto with random Vehicle)
-        var dummyData = new List<DockingDto>
+        // Hole alle Fahrzeuge die sich aktuell im Yard befinden (also gedockt sind)
+        // Ein Fahrzeug ist gedockt, wenn es eine Docking-Instanz mit ArrivalTime aber ohne DepartureTime hat und Mappe es zu einer Liste von DockingDto
+        var dockedVehicles = await _waypointService.GetDockedVehiclesAsync(warehouseId, cancellationToken);
+        if (dockedVehicles == null || !dockedVehicles.Any())
         {
-            new DockingDto(
-                new VehicleDto("1", "ABC123", "Carrier A", "Driver A", "123456789"),
-                new GatesDto("1", 1, true, "Type A", "Description A"),
-                DateTime.UtcNow.AddHours(-1),
-                null // Kein DepartureTime = noch gedockt
-            ),
-            new DockingDto(
-                new VehicleDto("2", "DEF456", "Carrier B", "Driver B", "987654321"),
-                new GatesDto("2", 2, true, "Type B", "Description B"),
-                DateTime.UtcNow.AddHours(-2),
-                null // Kein DepartureTime = noch gedockt
-            ),
-            new DockingDto(
-                new VehicleDto("3", "GHI789", "Carrier C", "Driver C", "456789123"),
-                new GatesDto("3", 3, true, "Type C", "Description C"),
-                DateTime.UtcNow.AddHours(-3),
-                null // Kein DepartureTime = noch gedockt
-            )
-        };
-        var result = await Task.FromResult(dummyData);
-        return Ok(result);
+            return Ok(new List<DockingDto>());
+        }
+        // Mappe die DockedVehicles zu einer Liste von DockingDto
+        var dockingDtos = dockedVehicles.Select(dv => new DockingDto(
+            new VehicleDto(dv.Id, dv.LicensePlate, dv.Carrier, dv.Driver, dv.Vin),
+            new GatesDto(dv.GateId, dv.DockingPosition, dv.IsActive, dv.GateType, dv.GateDescription),
+            dv.ArrivalTime,
+            dv.DepartureTime
+        )).ToList();
+
+        return Ok(dockingDtos);
     }
 }
+    

@@ -5,6 +5,7 @@ using Infrastructure.Logging;
 using Loadlane.Api.Hubs;
 using Loadlane.Application.Abstractions.Persistence;
 using Loadlane.Application.Services;
+using Loadlane.Application.Services.Waypoints;
 using Loadlane.Infrastructure.Persistence;
 using Loadlane.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -66,6 +67,7 @@ builder.Services.AddScoped<IGateRepository, GateRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 builder.Services.AddScoped<ICarrierService, CarrierService>();
+builder.Services.AddScoped<IWaypointService, WaypointService>();
 
 // Add Application Services
 builder.Services.AddScoped<DirectionsService>();
