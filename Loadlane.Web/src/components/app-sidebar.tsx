@@ -36,11 +36,11 @@ export function AppSidebar() {
     return (
         <Sidebar className="flex-grow">
             <SidebarHeader>
-                <div className="px-2 py-2 flex items-center gap-3">
+                <div className="px-2 py-2 gap-3 flex items-center justify-center">
                     <img
-                        src="/rhenus.png"
+                        src="/rhehack.png"
                         alt="Rhenus"
-                        className="h-8 w-auto"
+                        className="h-32 w-auto"
                     />
                     <h2 className="text-lg font-semibold hidden">Rhenus</h2>
                 </div>
