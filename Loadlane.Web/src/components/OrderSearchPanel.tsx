@@ -1,20 +1,91 @@
 import { useState, useEffect } from 'react';
-import { Search, Truck, MapPin, Clock, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Truck, MapPin, Clock, Package, Navigation } from 'lucide-react';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import type { OrderResponse } from '../types/order';
+import { Button } from './ui/button';
+import { useOrders } from '../hooks/useOrder';
+import { useWarehouses } from '../hooks/useWarehouse';
+import type {  OrderResponse } from '../types/order';
+import type { WarehouseResponse } from '../types/warehouse';
 
 interface OrderSearchPanelProps {
     orders: OrderResponse[];
     onOrderSelect: (order: any) => void;
     className?: string;
+    getTransportMarkerPosition?: (transportId: string) => { longitude: number; latitude: number } | null;
 }
 
-export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: OrderSearchPanelProps) {
+export function OrderSearchPanel({ orders, onOrderSelect, className = '', getTransportMarkerPosition }: OrderSearchPanelProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredOrders, setFilteredOrders] = useState(orders);
+    const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+
+    const { createOrder } = useOrders();
+    const { warehouses } = useWarehouses();
+    const navigate = useNavigate();
+
+    // Helper function to calculate distance between two points
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Find the nearest warehouse to a transport location
+    const findNearestWarehouse = (latitude: number, longitude: number): WarehouseResponse | null => {
+        if (!warehouses || warehouses.length === 0) return null;
+
+        let nearestWarehouse = warehouses[0];
+        let minDistance = calculateDistance(latitude, longitude, nearestWarehouse.location.latitude, nearestWarehouse.location.longitude);
+
+        for (let i = 1; i < warehouses.length; i++) {
+            const distance = calculateDistance(latitude, longitude, warehouses[i].location.latitude, warehouses[i].location.longitude);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestWarehouse = warehouses[i];
+            }
+        }
+
+        return nearestWarehouse;
+    };
+
+    const handleGoToYard = (order: OrderResponse) => {
+        // Get the current marker position if available, otherwise fall back to destination location
+        let currentLocation = null;
+
+        if (getTransportMarkerPosition && order.transport?.transportId) {
+            currentLocation = getTransportMarkerPosition(order.transport.transportId);
+        }
+
+        // Fallback to destination location for waiting transports if marker position not available
+        if (!currentLocation && order.transport?.destinationLocation) {
+            currentLocation = {
+                longitude: order.transport.destinationLocation.longitude,
+                latitude: order.transport.destinationLocation.latitude
+            };
+        }
+
+        if (!currentLocation) return;
+
+        const nearestWarehouse = findNearestWarehouse(
+            currentLocation.latitude,
+            currentLocation.longitude
+        );
+
+        if (nearestWarehouse) {
+            navigate(`/warehouses/${nearestWarehouse.id}/yard?transportId=${order.transport?.transportId}`);
+        }
+    };
+
+
 
     // Filter orders based on search term
     useEffect(() => {
@@ -130,6 +201,24 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Go to Yard button for waiting transports */}
+                                    {order.transport?.status === 'Waiting' && (
+                                        <div className="mt-2 flex justify-end">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent triggering the card click
+                                                    handleGoToYard(order);
+                                                }}
+                                                className="text-xs px-2 py-1 h-6"
+                                            >
+                                                <Navigation className="h-3 w-3 mr-1" />
+                                                Go to Yard
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         )}

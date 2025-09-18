@@ -130,6 +130,16 @@ export function MapComponent() {
         return offsetPosition;
     };
 
+    // Helper function to get transport marker positions
+    const getTransportMarkerPosition = (transportId: string) => {
+        const marker = transportMarkers.current.get(transportId);
+        if (marker) {
+            const lngLat = marker.getLngLat();
+            return { longitude: lngLat.lng, latitude: lngLat.lat };
+        }
+        return null;
+    };
+
     // Transform API warehouse data to legacy format for map display
     const warehouses: Warehouse[] = warehouseData.map((w) => ({
         id: w.id,
@@ -720,6 +730,7 @@ export function MapComponent() {
                 orders={orders}
                 onOrderSelect={handleOrderSelect}
                 className="absolute top-4 left-4 z-10 shadow-lg"
+                getTransportMarkerPosition={getTransportMarkerPosition}
             />
 
             {/* Map */}

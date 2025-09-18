@@ -71,6 +71,7 @@ builder.Services.AddScoped<IArticleRepository, ArticleRepository>();
 builder.Services.AddScoped<ICarrierRepository, CarrierRepository>();
 builder.Services.AddScoped<IWarehouseRepository, WarehouseRepository>();
 builder.Services.AddScoped<IGateRepository, GateRepository>();
+builder.Services.AddScoped<IWaypointRepository, WaypointRepository>();
 
 // Add Business Services
 builder.Services.AddScoped<IOrderService, OrderService>();

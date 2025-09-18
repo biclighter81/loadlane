@@ -10,6 +10,7 @@ import type { OrderResponse } from "../types/order";
 import { warehouseService } from '../services/warehouseService';
 import { yardService } from '../services/yardService';
 import { orderService } from '../services/orderService';
+import { waypointService } from '../services/waypointService';
 
 // Hilfsfunktion um Status basierend auf isActive zu bestimmen
 const getDockStatus = (gate: GateSimpleResponse): DockStatusType => {
@@ -58,6 +59,7 @@ export default function WarehouseYardPage() {
     const [order, setOrder] = useState<OrderResponse | null>(null);
     const [docks, setDocks] = useState<DockData[]>([]);
     const [trucks, setTrucks] = useState<TruckData[]>([]);
+    const [removingTrucks, setRemovingTrucks] = useState<number[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -98,13 +100,34 @@ export default function WarehouseYardPage() {
                     );
                     if (foundOrder) {
                         setOrder(foundOrder);
+                        
+                        // Lade und gebe Waypoints für diesen Transport aus
+                        try {
+                            const waypoints = await waypointService.getWaypointsByTransportId(foundOrder.transport.transportId);
+                            console.log('Waypoints für Transport', transportId, ':', waypoints);
+                            
+                            // Zusätzliche Details der Waypoints ausgeben
+                            waypoints.forEach((waypoint, index) => {
+                                console.log(`Waypoint ${index + 1}:`, {
+                                    id: waypoint.id,
+                                    location: `${waypoint.location.street} ${waypoint.location.houseNo}, ${waypoint.location.city}`,
+                                    plannedArrival: waypoint.plannedArrival,
+                                    actualArrival: waypoint.actualArrival,
+                                    hasArrived: waypoint.hasArrived,
+                                    isDelayed: waypoint.isDelayed,
+                                    gate: waypoint.gate ? `Gate ${waypoint.gate.number}` : 'Kein Gate zugewiesen'
+                                });
+                            });
+                        } catch (error) {
+                            console.error('Fehler beim Laden der Waypoints:', error);
+                        }
                     }
                 }
 
                 const [warehouseData, gatesData, yardData] = await Promise.all(promises);
 
                 setWarehouse(warehouseData);
-                
+            
                 // Erweitere Gates mit Status zu Docks
                 const enrichedDocks = gatesData.map(enrichGateWithStatus);
                 setDocks(enrichedDocks);
@@ -198,21 +221,30 @@ export default function WarehouseYardPage() {
             <TruckDocks
                 docks={docks}
                 trucks={trucks}
+                removingTrucks={removingTrucks}
                 warehouseText={warehouse.name}
                 onDockStatusChange={(dockId, newStatus) => {
                     console.log(`Dock ${dockId} status changed to: ${newStatus}`);
-                    // Aktualisiere lokalen State
+                    if(transportId) {
                     setDocks(prevDocks => 
                         prevDocks.map(dock => 
                             dock.number === dockId ? { ...dock, status: newStatus } : dock
                         )
                     );
+                     }
+                    // Aktualisiere lokalen State
+                
                 }}
                 onTruckClick={(truckData, dockId) => {
-                    console.log(`Truck ${truckData.id} clicked at dock ${dockId}`);
+                    console.log(`Truck ${truckData.id} clicked at dock ${dockId} - starting removal animation`);
+                    // Füge den LKW zur Liste der zu entfernenden LKWs hinzu
+                    setRemovingTrucks(prev => [...prev, truckData.id]);
                 }}
                 onTruckRemovalComplete={(truckId) => {
-                    console.log(`Truck ${truckId} removal completed`);
+                    console.log(`Truck ${truckId} removal animation completed - removing from lists`);
+                    // Entferne den LKW aus beiden Listen (removingTrucks und trucks)
+                    setRemovingTrucks(prev => prev.filter(id => id !== truckId));
+                    setTrucks(prev => prev.filter(truck => truck.id !== truckId));
                 }}
             />
         </div>

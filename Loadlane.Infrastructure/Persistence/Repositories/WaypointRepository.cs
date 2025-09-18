@@ -16,14 +16,61 @@ public sealed class WaypointRepository : IWaypointRepository
 
     public async Task<List<Waypoint>> GetByTransportIdAsync(Guid transportId, CancellationToken cancellationToken = default)
     {
-        return await _context.Waypoints
-            .Include(w => w.Location)
-            .Include(w => w.Gate)
-                .ThenInclude(g => g!.Warehouse)
-                    .ThenInclude(w => w.Location)
-            .Where(w => EF.Property<Guid?>(w, "TransportId") == transportId)
+        /*
+         * Option 2: Union Query Implementation
+         *
+         * Problem: Transport has different relationships with waypoint types:
+         * - Stopp: Direct foreign key TransportId -> can query directly
+         * - Start: Transport.StartId references waypoint -> requires join
+         * - Destination: Transport.DestinationId references waypoint -> requires join
+         *
+         * Solution: Combine three separate queries using UNION for complete coverage
+         */
+
+        // Helper method to build include chain (avoid duplication)
+        static IQueryable<T> BuildIncludes<T>(IQueryable<T> query) where T : Waypoint
+        {
+            return query
+                .Include(w => w.Location)
+                .Include(w => w.Gate)
+                    .ThenInclude(g => g!.Warehouse)
+                        .ThenInclude(w => w.Location);
+        }
+
+        // First, get the transport to check if it exists and get Start/Destination IDs efficiently
+        var transport = await _context.Transports
+            .Where(t => t.Id == transportId)
+            .Select(t => new { t.Id, StartId = t.Start!.Id, DestinationId = t.Destination!.Id })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (transport == null)
+        {
+            return new List<Waypoint>();
+        }
+
+        // Query 1: Stopps with direct TransportId foreign key
+        var stoppsQuery = BuildIncludes(_context.Stopps)
+            .Where(s => EF.Property<Guid?>(s, "TransportId") == transportId)
+            .Cast<Waypoint>();
+
+        // Query 2: Start waypoint by ID (more efficient than Contains)
+        var startsQuery = BuildIncludes(_context.Starts)
+            .Where(s => s.Id == transport.StartId)
+            .Cast<Waypoint>();
+
+        // Query 3: Destination waypoint by ID (more efficient than Contains)
+        var destinationsQuery = BuildIncludes(_context.Destinations)
+            .Where(d => d.Id == transport.DestinationId)
+            .Cast<Waypoint>();
+
+        // Execute union query and sort by creation time
+        var waypoints = await stoppsQuery
+            .Union(startsQuery)
+            .Union(destinationsQuery)
             .OrderBy(w => w.CreatedUtc)
             .ToListAsync(cancellationToken);
+
+        return waypoints;
     }
 
     public async Task<Waypoint?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
