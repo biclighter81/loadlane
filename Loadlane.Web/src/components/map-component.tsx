@@ -112,7 +112,7 @@ export function MapComponent() {
     };
 
     // Function to handle transport drawer close
-    const handleTransportDrawerClose = () => {
+    const handleTransportInfoClose = () => {
         if (selectedTransportInfo) {
             hideRoute(selectedTransportInfo.transportId);
             setSelectedTransportInfo(null);
@@ -263,8 +263,10 @@ export function MapComponent() {
         const mapInstance = new mapboxgl.Map({
             container: mapContainer.current,
             style: 'mapbox://styles/mapbox/streets-v12',
-            center: [13.4050, 52.52],
-            zoom: 11
+            center: [10.4515, 51.1657], // Center of Germany
+            zoom: 5.5, // Zoom level to show all of Germany
+            pitch: 0,
+            bearing: 0
         });
 
         map.current = mapInstance;
@@ -308,13 +310,59 @@ export function MapComponent() {
                 setSelectedWarehouseInfo(warehouse);
             });
 
+            // Add tooltip functionality that follows the marker
+            let popup: mapboxgl.Popup | null = null;
+
+            const showTooltip = () => {
+                if (popup) popup.remove(); // Remove existing popup if any
+
+                const currentLngLat = marker.getLngLat();
+                popup = new mapboxgl.Popup({
+                    offset: 25,
+                    closeButton: false,
+                    className: 'warehouse-tooltip'
+                })
+                    .setLngLat(currentLngLat)
+                    .setHTML(`
+                        <div class="p-2 bg-white">
+                            <div class="font-semibold">${warehouse.name}</div>
+                            <div class="text-sm text-gray-600">Type: ${warehouse.type}</div>
+                            <div class="text-sm text-gray-600">Capacity: ${warehouse.capacity.toLocaleString()} m³</div>
+                            <div class="text-sm text-gray-600">${warehouse.lng.toFixed(4)}, ${warehouse.lat.toFixed(4)}</div>
+                        </div>
+                    `)
+                    .addTo(map.current!);
+
+                // Store reference for cleanup
+                (markerEl as any)._popup = popup;
+            };
+
+            const hideTooltip = () => {
+                if (popup) {
+                    popup.remove();
+                    popup = null;
+                }
+                (markerEl as any)._popup = null;
+            };
+
+            markerEl.addEventListener('mouseenter', showTooltip);
+            markerEl.addEventListener('mouseleave', hideTooltip);
+
             markers.push(marker);
         });
 
         warehouseMarkers.current = markers;
 
         return () => {
-            markers.forEach(marker => marker.remove());
+            markers.forEach(marker => {
+                // Clean up any existing tooltip
+                const markerEl = marker.getElement();
+                const popup = (markerEl as any)._popup;
+                if (popup) {
+                    popup.remove();
+                }
+                marker.remove();
+            });
         };
     }, [warehouses, warehousesLoading]);
 
@@ -397,7 +445,7 @@ export function MapComponent() {
                 })
                     .setLngLat(currentLngLat)
                     .setHTML(`
-                        <div class="p-2">
+                        <div class="p-2 bg-white">
                             <div class="font-semibold">${transport.transportId}</div>
                             <div class="text-sm text-gray-600">Status: ${transport.status}</div>
                             <div class="text-sm text-gray-600">Carrier: ${transport.carrier || 'Unknown'}</div>
@@ -463,7 +511,18 @@ export function MapComponent() {
         // Handle Transport completed events
         newConnection.on('TransportCompleted', (completion: any) => {
             console.log('Transport completed:', completion);
-
+            setOrders(prevOrders => prevOrders.map(order => {
+                if (order.transport?.transportId === completion.transportId) {
+                    return {
+                        ...order,
+                        transport: {
+                            ...order.transport,
+                            status: 'Completed'
+                        }
+                    };
+                }
+                return order;
+            }));
             const marker = transportMarkers.current.get(completion.transportId);
             if (marker) {
                 // Change marker appearance to show completion
@@ -477,12 +536,6 @@ export function MapComponent() {
                         </svg>
                     `;
                 }
-
-                // Remove marker after a delay
-                setTimeout(() => {
-                    marker.remove();
-                    transportMarkers.current.delete(completion.transportId);
-                }, 5000);
             }
         });
 
@@ -626,113 +679,101 @@ export function MapComponent() {
                 </Sheet>
             )}
 
-            {/* Transport Info Drawer */}
+            {/* Transport Info Card - Top Right */}
             {selectedTransportInfo && (
-                <Sheet
-                    open={!!selectedTransportInfo}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            // Hide route when closing drawer
-                            handleTransportDrawerClose();
-                        }
-                    }}
-                >
-                    <SheetContent side="right" className="w-[36rem] p-0">
-                        <div className="p-6 h-full flex flex-col">
-                            <SheetHeader className="mb-4">
-                                <div className="flex items-center justify-start">
-                                    <SheetTitle className="flex items-center gap-4">
-                                        <span className="text-2xl">
-                                            <Truck className="h-5 w-5" />
-                                        </span>
-                                        Transport {selectedTransportInfo.transportId}
-                                    </SheetTitle>
-                                </div>
-                                <SheetDescription className="sr-only">
-                                    Transport information and route details
-                                </SheetDescription>
-                            </SheetHeader>
-
-                            {selectedTransportInfo && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center">
-                                        <Label className="font-medium">Status</Label>
-                                        <Badge className={`ml-2 ${selectedTransportInfo.status === 'InTransit' ? 'bg-blue-100 text-blue-800' :
-                                            selectedTransportInfo.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                                                'bg-gray-100 text-gray-800'
-                                            }`}>
-                                            {selectedTransportInfo.status}
-                                        </Badge>
-                                    </div>
-
-                                    <div>
-                                        <Label className="font-medium">Carrier</Label>
-                                        <p className="text-sm mt-1">
-                                            {selectedTransportInfo.carrier || 'Unknown'}
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <Label className="font-medium">Start Location</Label>
-                                        <p className="text-sm mt-1">
-                                            {selectedTransportInfo.startLocation?.longitude.toFixed(4)}, {selectedTransportInfo.startLocation?.latitude.toFixed(4)}
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <Label className="font-medium">Destination</Label>
-                                        <p className="text-sm mt-1">
-                                            {selectedTransportInfo.destinationLocation?.longitude.toFixed(4)}, {selectedTransportInfo.destinationLocation?.latitude.toFixed(4)}
-                                        </p>
-                                    </div>
-
-                                    {selectedTransportInfo.stopps && selectedTransportInfo.stopps.length > 0 && (
-                                        <div>
-                                            <Label className="font-medium">Stops</Label>
-                                            <div className="mt-1 space-y-1">
-                                                {selectedTransportInfo.stopps.map((stop: any, index: number) => (
-                                                    <p key={index} className="text-sm text-gray-600">
-                                                        Stop {index + 1}: {stop.location?.longitude?.toFixed(4)}, {stop.location?.latitude?.toFixed(4)}
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {selectedTransportInfo.routeData && (
-                                        <>
-                                            <div>
-                                                <Label className="font-medium">Route Distance</Label>
-                                                <p className="text-sm mt-1">
-                                                    {(selectedTransportInfo.routeData.distance / 1000).toFixed(2)} km
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <Label className="font-medium">Estimated Duration</Label>
-                                                <p className="text-sm mt-1">
-                                                    {Math.round(selectedTransportInfo.routeData.duration / 60)} minutes
-                                                </p>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-
-                            <SheetFooter className="mt-auto">
-                                <Button
-                                    onClick={handleTransportDrawerClose}
-                                    className="w-full"
-                                    variant="outline"
-                                >
-                                    <X className="h-4 w-4 mr-2" />
-                                    Close
-                                </Button>
-                            </SheetFooter>
+                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-lg shadow-xl border p-4 h-[95%] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Truck className="h-5 w-5 text-blue-600" />
+                            <h3 className="text-lg font-semibold">
+                                Transport
+                            </h3>
                         </div>
-                    </SheetContent>
-                </Sheet>
-            )}
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleTransportInfoClose}
+                            className="p-1 h-6 w-6"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div>
+                            <Label className="text-sm font-medium">Transport ID</Label>
+                            <p className="text-sm mt-1 text-gray-600 font-bold">
+                                {selectedTransportInfo.transportId}
+                            </p>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium">Status</Label>
+                            <Badge className={`${selectedTransportInfo.status === 'InTransit' ? 'bg-blue-100 text-blue-800' :
+                                selectedTransportInfo.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
+                                }`}>
+                                {selectedTransportInfo.status}
+                            </Badge>
+                        </div>
+
+                        <div>
+                            <Label className="text-sm font-medium">Carrier</Label>
+                            <p className="text-sm mt-1 text-gray-600">
+                                {selectedTransportInfo.carrier || 'Unknown'}
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label className="text-sm font-medium">Start Location</Label>
+                            <p className="text-sm mt-1 text-gray-600">
+                                {selectedTransportInfo.startLocation?.longitude.toFixed(4)}, {selectedTransportInfo.startLocation?.latitude.toFixed(4)}
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label className="text-sm font-medium">Destination</Label>
+                            <p className="text-sm mt-1 text-gray-600">
+                                {selectedTransportInfo.destinationLocation?.longitude.toFixed(4)}, {selectedTransportInfo.destinationLocation?.latitude.toFixed(4)}
+                            </p>
+                        </div>
+
+                        {selectedTransportInfo.stopps && selectedTransportInfo.stopps.length > 0 && (
+                            <div>
+                                <Label className="text-sm font-medium">Stops</Label>
+                                <div className="mt-1 space-y-1">
+                                    {selectedTransportInfo.stopps.map((stop: any, index: number) => (
+                                        <p key={index} className="text-sm text-gray-600">
+                                            Stop {index + 1}: {stop.location?.longitude?.toFixed(4)}, {stop.location?.latitude?.toFixed(4)}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedTransportInfo.routeData && (
+                            <>
+                                <div className="border-t pt-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label className="text-sm font-medium">Distance</Label>
+                                            <p className="text-sm mt-1 text-gray-600">
+                                                {(selectedTransportInfo.routeData.distance / 1000).toFixed(2)} km
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label className="text-sm font-medium">Duration</Label>
+                                            <p className="text-sm mt-1 text-gray-600">
+                                                {Math.round(selectedTransportInfo.routeData.duration / 60)} min
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )
+            }
 
             {/* Simulation Speed Control */}
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border p-4 z-10 max-w-5xl">
@@ -775,6 +816,6 @@ export function MapComponent() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

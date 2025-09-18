@@ -41,12 +41,12 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
       <Canvas
         camera={{
           position: [0, 20, 30],
-          fov: 75,
+          fov: 100,
         }}
         shadows
       >
         {/* Umgebungsbeleuchtung */}
-        <ambientLight intensity={0.4} />
+        <ambientLight intensity={0.7} />
         
         {/* Hauptlichtquelle */}
         <directionalLight
@@ -58,7 +58,7 @@ const TruckDocks: React.FC<TruckDocksProps> = ({ docks, trucks = [], removingTru
         />
         
         {/* Boden/Asphalt */}
-        <Box args={[hallWidth + 20, 0.1, 30]} position={[0, 0, 0]} receiveShadow>
+        <Box args={[hallWidth + 50, 0.1, 50]} position={[0, 0, 0]} receiveShadow>
           <meshStandardMaterial color="#a9a9a9" />
         </Box>
         

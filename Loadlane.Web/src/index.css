@@ -33,20 +33,6 @@
     scrollbar-gutter: stable;
   }
 
-  /* Custom scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  /* Light mode - dark scrollbar */
-  ::-webkit-scrollbar-track {
-    background: #f8fafc;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #64748b;
-    border-radius: 4px;
-  }
 
   /* Warehouse marker styles */
   .warehouse-marker {
@@ -308,4 +294,31 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+}
+
+/* Map Tooltip Styles */
+.mapboxgl-popup.warehouse-tooltip .mapboxgl-popup-content {
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.mapboxgl-popup.warehouse-tooltip .mapboxgl-popup-tip {
+  border-top-color: hsl(var(--background));
+}
+
+.mapboxgl-popup.transport-tooltip .mapboxgl-popup-content {
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.mapboxgl-popup.transport-tooltip .mapboxgl-popup-tip {
+  border-top-color: hsl(var(--background));
 }

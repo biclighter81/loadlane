@@ -72,14 +72,14 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
     };
 
     return (
-        <Card className={`w-80 max-h-[600px] ${className}`}>
+        <Card className={`w-80 h-[95%] ${className}`}>
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Package className="h-5 w-5" />
                     Transports
                 </CardTitle>
-                <Button variant="default"  size="sm" onClick={() => openNewOrderDialog()}>
-                   Create Order
+                <Button variant="default" size="sm" onClick={() => openNewOrderDialog()}>
+                    Create Order
                 </Button>
 
                 <div className="relative">
