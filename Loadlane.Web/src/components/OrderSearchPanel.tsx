@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { useOrders } from '../hooks/useOrder';
 import { useWarehouses } from '../hooks/useWarehouse';
 import type { OrderResponse } from '../types/order';
 import type { WarehouseResponse } from '../types/warehouse';
@@ -21,9 +20,6 @@ interface OrderSearchPanelProps {
 export function OrderSearchPanel({ orders, onOrderSelect, className = '', getTransportMarkerPosition }: OrderSearchPanelProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredOrders, setFilteredOrders] = useState(orders);
-    const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-
-    const { createOrder } = useOrders();
     const { warehouses } = useWarehouses();
     const navigate = useNavigate();
 

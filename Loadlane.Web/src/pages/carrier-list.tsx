@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Truck, Mail, Phone, AlertCircle, Plus, Loader2, Edit, MoreHorizontal, Trash2 } from "lucide-react";
 import { useCarriers } from "../hooks/useCarrier";
@@ -107,7 +106,7 @@ export function CarrierListPage() {
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-12 md:grid-cols-2 lg:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2">
                     {carriers.map((carrier) => (
                         <CarrierCard
                             key={carrier.id}

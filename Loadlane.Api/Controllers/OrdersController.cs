@@ -30,8 +30,8 @@ public class OrdersController : ControllerBase
             var createOrderDto = new CreateOrderDto(
                 request.ExtOrderNo,
                 request.Quantity,
-                request.Article,
-                request.Carrier,
+                request.ArticleId,
+                request.CarrierId,
                 request.StartLocation,
                 request.DestinationLocation,
                 request.PlannedDeparture,
@@ -162,8 +162,8 @@ public class OrdersController : ControllerBase
 public sealed record CreateOrderRequest(
     string ExtOrderNo,
     int Quantity,
-    ArticleDto Article,
-    CarrierDto Carrier,
+    Guid ArticleId,
+    Guid CarrierId,
     LocationDto StartLocation,
     LocationDto DestinationLocation,
     DateTime? PlannedDeparture = null,

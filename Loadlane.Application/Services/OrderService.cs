@@ -54,9 +54,13 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException($"Order with external order number '{createOrderDto.ExtOrderNo}' already exists.");
         }
 
-        // Create or get existing entities
-        var article = await GetOrCreateArticleAsync(createOrderDto.Article, cancellationToken);
-        var carrier = await GetOrCreateCarrierAsync(createOrderDto.Carrier, cancellationToken);
+        // Get existing entities by ID (direct access, no validation)
+        var article = await _articleRepository.GetByIdAsync(createOrderDto.ArticleId, cancellationToken);
+        if(article == null)
+            throw new InvalidOperationException($"Article with ID '{createOrderDto.ArticleId}' not found.");
+        var carrier = await _carrierRepository.GetByIdAsync(createOrderDto.CarrierId, cancellationToken);
+        if(carrier == null)
+            throw new InvalidOperationException($"Carrier with ID '{createOrderDto.CarrierId}' not found.");
         var startLocation = await GetOrCreateLocationAsync(createOrderDto.StartLocation, cancellationToken);
         var destinationLocation = await GetOrCreateLocationAsync(createOrderDto.DestinationLocation, cancellationToken);
 
@@ -70,10 +74,16 @@ public sealed class OrderService : IOrderService
         // Generate dynamic transport ID
         var transportId = $"transp_{Guid.NewGuid().ToString().Substring(0, 8)}";
 
+        // Create dummy vehicle with Dortmund license plate
+        var dummyVehicle = new Vehicle($"DO-DM-{Random.Shared.Next(1000, 9999)}", $"DO-TL-{Random.Shared.Next(100, 999)}");
+
         // Create transport
         var transport = new Transport(transportId, order);
         transport.SetRoute(start, destination);
         transport.SetCarrier(carrier);
+
+        // Assign dummy vehicle to transport
+        transport.SetVehicle(dummyVehicle);
 
         // Add stopps if provided
         if (createOrderDto.Stopps?.Any() == true)
@@ -386,36 +396,6 @@ public sealed class OrderService : IOrderService
         return transport.Destination;
     }
 
-    private async Task<Article> GetOrCreateArticleAsync(ArticleDto articleDto, CancellationToken cancellationToken)
-    {
-        var existingArticle = await _articleRepository.GetByNameAsync(articleDto.Name, cancellationToken);
-        if (existingArticle != null)
-        {
-            return existingArticle;
-        }
-
-        var article = new Article(articleDto.Name, articleDto.Description);
-        if (articleDto.Weight.HasValue && articleDto.Volume.HasValue)
-        {
-            article.SetDimensions(articleDto.Weight.Value, articleDto.Volume.Value);
-        }
-
-        await _articleRepository.AddAsync(article, cancellationToken);
-        return article;
-    }
-
-    private async Task<Carrier> GetOrCreateCarrierAsync(CarrierDto carrierDto, CancellationToken cancellationToken)
-    {
-        var existingCarrier = await _carrierRepository.GetByNameAsync(carrierDto.Name, cancellationToken);
-        if (existingCarrier != null)
-        {
-            return existingCarrier;
-        }
-
-        var carrier = new Carrier(carrierDto.Name, carrierDto.ContactEmail, carrierDto.ContactPhone);
-        await _carrierRepository.AddAsync(carrier, cancellationToken);
-        return carrier;
-    }
 
     private async Task<Location> GetOrCreateLocationAsync(LocationDto locationDto, CancellationToken cancellationToken)
     {

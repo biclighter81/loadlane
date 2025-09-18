@@ -146,22 +146,14 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
         throw new Error(locationValidation.message);
       }
 
-      // Prepare carrier data - carrierId is required now
+      // Validate required IDs
       if (!data.carrierId) {
         throw new Error('Please select a carrier');
       }
 
-      const carrierData = {
-        name: '', // Will be filled by backend from carrierId
-      };
-
-      // Prepare article data
-      const articleData = {
-        name: data.articleName || '',
-        description: data.articleDescription,
-        weight: data.articleWeight,
-        volume: data.articleVolume,
-      };
+      if (!data.articleId) {
+        throw new Error('Please select an article');
+      }
 
       // Prepare waypoints/stopps
       const stopps = data.waypoints.map(waypoint => ({
@@ -173,8 +165,8 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
       const orderRequest: CreateOrderRequest = {
         extOrderNo: data.extOrderNo,
         quantity: data.quantity,
-        article: articleData,
-        carrier: carrierData,
+        articleId: data.articleId,
+        carrierId: data.carrierId,
         startLocation: data.startLocation,
         destinationLocation: data.destinationLocation,
         plannedDeparture: data.plannedDeparture,
@@ -221,10 +213,14 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
 
   const handleCreateArticle = async (data: CreateArticleRequest) => {
     try {
-      await createArticle(data);
+      const newArticle = await createArticle(data);
       // Refresh the articles list to make the new article available in the selector
       refetchArticles();
       articleSelectorRef.current?.refresh();
+
+      // Auto-select the newly created article
+      handleArticleSelect(newArticle);
+
       setIsArticleDialogOpen(false);
     } catch (error) {
       console.error('Error creating article:', error);
@@ -233,10 +229,14 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
 
   const handleCreateCarrier = async (data: CreateCarrierRequest) => {
     try {
-      await createCarrier(data);
+      const newCarrier = await createCarrier(data);
       // Refresh the carriers list to make the new carrier available in the selector
       refetchCarriers();
       carrierSelectorRef.current?.refresh();
+
+      // Auto-select the newly created carrier
+      handleCarrierSelect(newCarrier);
+
       setIsCarrierDialogOpen(false);
     } catch (error) {
       console.error('Error creating carrier:', error);
