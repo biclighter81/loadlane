@@ -156,23 +156,6 @@ export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorPro
           </Command>
         </PopoverContent>
       </Popover>
-
-      {selectedArticle && (
-        <div className="flex flex-wrap gap-1">
-          {selectedArticle.weight && (
-            <Badge variant="outline" className="text-xs">
-              <Scale className="h-3 w-3 mr-1" />
-              {selectedArticle.weight} kg
-            </Badge>
-          )}
-          {selectedArticle.volume && (
-            <Badge variant="outline" className="text-xs">
-              <Box className="h-3 w-3 mr-1" />
-              {selectedArticle.volume} m³
-            </Badge>
-          )}
-        </div>
-      )}
     </div>
   );
 });

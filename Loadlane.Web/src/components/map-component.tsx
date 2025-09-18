@@ -87,7 +87,7 @@ export function MapComponent() {
     const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
 
     // Get order functions for creating orders
-    const { createOrder, refetch, orders: orderStore } = useOrders();
+    const { createOrder } = useOrders();
 
     // Order creation handlers
     const openNewOrderDialog = () => {
@@ -96,12 +96,12 @@ export function MapComponent() {
 
     const handleCreateOrder = async (data: CreateOrderRequest) => {
         try {
-            await createOrder(data);
-
+            const transport = await createOrder(data);
+            console.log('Created order with transport:', transport);
+            setOrders((prevOrders) => [...prevOrders, transport]);
             // Refetch orders after creating a new one
             setIsRegisterDialogOpen(false);
-            await refetch();
-            setOrders(orderStore)
+        
         } catch (error) {
             console.error('Failed to create order:', error);
             // Handle error (could show a toast notification)
