@@ -8,5 +8,6 @@ public enum TransportStatus
     Rejected,
     InProgress,
     Completed,
-    Cancelled
+    Cancelled,
+    Waiting
 }

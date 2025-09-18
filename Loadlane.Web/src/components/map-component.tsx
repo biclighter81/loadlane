@@ -15,6 +15,7 @@ import {
     Gauge,
 } from 'lucide-react';
 import type { Warehouse } from '../types/map';
+import type { OrderResponse } from '../types/order';
 import { useWarehouses } from '../hooks/useWarehouse';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
@@ -68,17 +69,40 @@ export function MapComponent() {
     const map = useRef<mapboxgl.Map | null>(null);
     const [selectedWarehouseInfo, setSelectedWarehouseInfo] = useState<Warehouse | null>(null);
     const [selectedTransportInfo, setSelectedTransportInfo] = useState<any | null>(null);
-    const [orders, setOrders] = useState<any[]>([]);
+    const [orders, setOrders] = useState<OrderResponse[]>([]);
     const warehouseMarkers = useRef<mapboxgl.Marker[]>([]);
     const transportMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
     const transportRoutes = useRef<Map<string, any>>(new Map()); // Store route data for each transport
+    const waitingTransportOffsets = useRef<Map<string, { lng: number, lat: number }>>(new Map()); // Track offset positions for waiting transports
     const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
     const [simulationSpeed, setSimulationSpeed] = useState<number>(1); // Speed multiplier (1x, 2x, 5x, etc.)
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
+    console.log(orders)
 
     // Get warehouse data from API
     const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
+
+    // Helper function to calculate offset position for waiting transports
+    const getOffsetPosition = (baseLocation: { longitude: number, latitude: number }, transportId: string) => {
+        const locationKey = `${baseLocation.longitude.toFixed(6)},${baseLocation.latitude.toFixed(6)}`;
+
+        // Check how many waiting transports are already at this location
+        const existingOffsets = Array.from(waitingTransportOffsets.current.entries()).filter(([_, pos]) => {
+            const key = `${pos.lng.toFixed(6)},${pos.lat.toFixed(6)}`;
+            return key === locationKey || Math.abs(pos.lng - baseLocation.longitude) < 0.001 && Math.abs(pos.lat - baseLocation.latitude) < 0.001;
+        }).length;
+
+        // Calculate offset in a circular pattern around the base location
+        const offsetDistance = 0.0005; // ~50m offset
+        const angle = (existingOffsets * 60) * (Math.PI / 180); // 60 degrees apart
+        const offsetLng = baseLocation.longitude + (offsetDistance * Math.cos(angle));
+        const offsetLat = baseLocation.latitude + (offsetDistance * Math.sin(angle));
+
+        const offsetPosition = { lng: offsetLng, lat: offsetLat };
+        waitingTransportOffsets.current.set(transportId, offsetPosition);
+        return offsetPosition;
+    };
 
     // Transform API warehouse data to legacy format for map display
     const warehouses: Warehouse[] = warehouseData.map((w) => ({
@@ -373,63 +397,87 @@ export function MapComponent() {
             .withAutomaticReconnect()
             .build();
 
-        // Handle Transport events - when a new transport is received from backend
-        newConnection.on('Transport', (transport: any) => {
+        // Handle Order events - when a complete order is received from backend
+        newConnection.on('Order', (order: OrderResponse) => {
             if (!map.current) return;
 
-            console.log('Received transport:', transport);
+            console.log('Received order:', order);
 
-            // Store the order/transport data
+            // Store the complete order data
             setOrders(prevOrders => {
                 // Check if order already exists (avoid duplicates)
-                const existingOrderIndex = prevOrders.findIndex(order =>
-                    order.orderId === transport.orderId ||
-                    order.transport?.transportId === transport.transportId
+                const existingOrderIndex = prevOrders.findIndex(existingOrder =>
+                    existingOrder.id === order.id ||
+                    existingOrder.transport?.transportId === order.transport.transportId
                 );
 
                 if (existingOrderIndex >= 0) {
                     // Update existing order
                     const updatedOrders = [...prevOrders];
-                    updatedOrders[existingOrderIndex] = {
-                        id: transport.orderId,
-                        orderId: transport.orderId,
-                        transport: transport,
-                        createdAt: new Date().toISOString()
-                    };
+                    updatedOrders[existingOrderIndex] = order;
                     return updatedOrders;
                 } else {
                     // Add new order
-                    return [...prevOrders, {
-                        id: transport.orderId,
-                        orderId: transport.orderId,
-                        transport: transport,
-                        createdAt: new Date().toISOString()
-                    }];
+                    return [...prevOrders, order];
                 }
             });
 
             // Create a transport marker
+            const isWaiting = order.transport.status === 'Waiting';
             const markerEl = document.createElement('div');
             markerEl.className = 'transport-marker';
-            markerEl.innerHTML = `
-                <div class="flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white shadow-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
-                        <path d="M15 18H9"/>
-                        <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
-                        <circle cx="17" cy="18" r="2"/>
-                        <circle cx="7" cy="18" r="2"/>
-                    </svg>
-                </div>
-            `;
-            markerEl.title = `Transport ${transport.transportId}`;
+
+            if (isWaiting) {
+                // Create waiting marker with orange truck icon (no warning indicator)
+                markerEl.innerHTML = `
+                    <div class="flex items-center justify-center w-10 h-10 bg-orange-500 rounded-full text-white shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                            <path d="M15 18H9"/>
+                            <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+                            <circle cx="17" cy="18" r="2"/>
+                            <circle cx="7" cy="18" r="2"/>
+                        </svg>
+                    </div>
+                `;
+                // Position at destination (warehouse) for waiting transports
+                markerEl.title = `Transport ${order.transport.transportId} - Waiting for gate assignment`;
+            } else {
+                // Regular transport marker
+                markerEl.innerHTML = `
+                    <div class="flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                            <path d="M15 18H9"/>
+                            <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+                            <circle cx="17" cy="18" r="2"/>
+                            <circle cx="7" cy="18" r="2"/>
+                        </svg>
+                    </div>
+                `;
+                markerEl.title = `Transport ${order.transport.transportId}`;
+            }
+
+            const startLocation = isWaiting && order.transport.destinationLocation
+                ? order.transport.destinationLocation
+                : order.transport.startLocation;
+
+            if (!startLocation) {
+                console.warn('No valid location found for transport:', order.transport.transportId);
+                return;
+            }
+
+            // Calculate position with offset for waiting transports to prevent overlap
+            const markerPosition = isWaiting
+                ? getOffsetPosition(startLocation, order.transport.transportId)
+                : { lng: startLocation.longitude, lat: startLocation.latitude };
 
             const marker = new mapboxgl.Marker({ element: markerEl })
-                .setLngLat([transport.startLocation.longitude, transport.startLocation.latitude])
+                .setLngLat([markerPosition.lng, markerPosition.lat])
                 .addTo(map.current);
 
             // Store the marker for position updates
-            transportMarkers.current.set(transport.transportId, marker);
+            transportMarkers.current.set(order.transport.transportId, marker);
 
             // Add tooltip functionality that follows the marker
             let popup: mapboxgl.Popup | null = null;
@@ -446,9 +494,10 @@ export function MapComponent() {
                     .setLngLat(currentLngLat)
                     .setHTML(`
                         <div class="p-2 bg-white">
-                            <div class="font-semibold">${transport.transportId}</div>
-                            <div class="text-sm text-gray-600">Status: ${transport.status}</div>
-                            <div class="text-sm text-gray-600">Carrier: ${transport.carrier || 'Unknown'}</div>
+                            <div class="font-semibold">${order.transport.transportId}</div>
+                            <div class="text-sm text-gray-600">Status: ${order.transport.status}</div>
+                            <div class="text-sm text-gray-600">Carrier: ${order.transport.carrier?.name || 'Unknown'}</div>
+                            ${isWaiting ? '<div class="text-sm text-orange-600">⚠️ Waiting for gate assignment</div>' : ''}
                         </div>
                     `)
                     .addTo(map.current!);
@@ -468,10 +517,12 @@ export function MapComponent() {
             markerEl.addEventListener('mouseenter', showTooltip);
             markerEl.addEventListener('mouseleave', hideTooltip);
 
-            // Add click handler to select transport and show route
-            markerEl.addEventListener('click', () => {
-                selectTransport(transport);
-            });
+            // Add click handler to select transport and show route (only for non-waiting transports)
+            if (!isWaiting) {
+                markerEl.addEventListener('click', () => {
+                    selectTransport(order.transport);
+                });
+            }
         });
 
         // Handle Route events - store route data for each transport
@@ -508,33 +559,79 @@ export function MapComponent() {
             }
         });
 
-        // Handle Transport completed events
-        newConnection.on('TransportCompleted', (completion: any) => {
-            console.log('Transport completed:', completion);
+        // Handle Transport arrived events
+        newConnection.on('TransportArrived', (arrival: any) => {
+            console.log('Transport arrived:', arrival);
             setOrders(prevOrders => prevOrders.map(order => {
-                if (order.transport?.transportId === completion.transportId) {
+                if (order.transport?.transportId === arrival.transportId) {
                     return {
                         ...order,
                         transport: {
                             ...order.transport,
-                            status: 'Completed'
+                            status: 'Waiting' as const
                         }
                     };
                 }
                 return order;
             }));
-            const marker = transportMarkers.current.get(completion.transportId);
+            const marker = transportMarkers.current.get(arrival.transportId);
             if (marker) {
-                // Change marker appearance to show completion
+                // Change marker appearance to show waiting (orange)
                 const markerEl = marker.getElement();
                 const innerDiv = markerEl.querySelector('div');
                 if (innerDiv) {
-                    innerDiv.className = 'flex items-center justify-center w-8 h-8 bg-green-500 rounded-full text-white shadow-lg';
+                    innerDiv.className = 'flex items-center justify-center w-10 h-10 bg-orange-500 rounded-full text-white shadow-lg';
                     innerDiv.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 6 9 17l-5-5"/>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                            <path d="M15 18H9"/>
+                            <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+                            <circle cx="17" cy="18" r="2"/>
+                            <circle cx="7" cy="18" r="2"/>
                         </svg>
                     `;
+                    markerEl.title = `Transport ${arrival.transportId} - Waiting for gate assignment`;
+                }
+            }
+        });
+
+        // Handle transport status changes (e.g., waiting -> in-progress)
+        newConnection.on('TransportStatusChanged', (data: any) => {
+            console.log('Transport status changed:', data);
+
+            // Update order state
+            setOrders(prevOrders => prevOrders.map(order => {
+                if (order.transport?.transportId === data.transportId) {
+                    return data.order; // Use the updated order from server
+                }
+                return order;
+            }));
+
+            // Update marker appearance if status changed from Waiting to InProgress
+            if (data.status === 'InProgress') {
+                const marker = transportMarkers.current.get(data.transportId);
+                if (marker) {
+                    const markerEl = marker.getElement();
+                    const innerDiv = markerEl.querySelector('div');
+                    if (innerDiv) {
+                        // Change from waiting (orange with warning) to active (blue)
+                        innerDiv.className = 'flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full text-white shadow-lg';
+                        innerDiv.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                                <path d="M15 18H9"/>
+                                <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/>
+                                <circle cx="17" cy="18" r="2"/>
+                                <circle cx="7" cy="18" r="2"/>
+                            </svg>
+                        `;
+                        markerEl.title = `Transport ${data.transportId}`;
+
+                        // Enable click handler for route display
+                        markerEl.addEventListener('click', () => {
+                            selectTransport(data.order.transport);
+                        });
+                    }
                 }
             }
         });

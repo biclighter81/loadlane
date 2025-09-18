@@ -1,6 +1,8 @@
 using Loadlane.Application.DTOs;
 using Loadlane.Application.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Loadlane.Api.Hubs;
 
 namespace Loadlane.Api.Controllers;
 
@@ -9,10 +11,12 @@ namespace Loadlane.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IHubContext<TripHub> _hubContext;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, IHubContext<TripHub> hubContext)
     {
         _orderService = orderService;
+        _hubContext = hubContext;
     }
 
     [HttpPost]

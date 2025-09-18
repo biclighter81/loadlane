@@ -42,6 +42,21 @@ public sealed class WarehouseRepository : IWarehouseRepository
             .AnyAsync(w => w.Name == name, cancellationToken);
     }
 
+    public async Task<Warehouse?> GetByLocationAsync(double latitude, double longitude, double toleranceMeters = 100, CancellationToken cancellationToken = default)
+    {
+        // Calculate approximate degree tolerance based on meters
+        // This is a rough approximation: 1 degree ≈ 111,000 meters at the equator
+        var toleranceDegrees = toleranceMeters / 111000.0;
+
+        return await _context.Warehouses
+            .Include(w => w.Location)
+            .Include(w => w.Gates)
+            .Where(w =>
+                Math.Abs(w.Location.Latitude - latitude) <= toleranceDegrees &&
+                Math.Abs(w.Location.Longitude - longitude) <= toleranceDegrees)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public void Update(Warehouse warehouse)
     {
         _context.Warehouses.Update(warehouse);

@@ -6,7 +6,7 @@ public sealed class Transport
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string TransportId { get; private set; }
-    public TransportStatus Status { get; private set; } = TransportStatus.Draft;
+    public TransportStatus Status { get; private set; } = TransportStatus.Accepted;
 
     public Order? Order { get; private set; }
     public Vehicle? Vehicle { get; private set; }
@@ -104,6 +104,11 @@ public sealed class Transport
         //     throw new InvalidOperationException("Transport must be in progress to complete");
 
         Status = TransportStatus.Completed;
+    }
+
+    public void SetWaiting()
+    {
+        Status = TransportStatus.Waiting;
     }
 
     public void Cancel()

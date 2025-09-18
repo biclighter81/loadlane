@@ -12,6 +12,8 @@ public interface IOrderService
     Task<List<OrderResponseDto>> GetAllOrdersAsync(CancellationToken cancellationToken = default);
     Task<List<OrderResponseDto>> GetAllOrdersAsync(bool? includeCompleted, CancellationToken cancellationToken = default);
     Task UpdateTransportStatusAsync(string transportId, Domain.Enums.TransportStatus status, CancellationToken cancellationToken = default);
+    Task MarkTransportAsArrivedAsync(string transportId, CancellationToken cancellationToken = default);
+    Task HandleTransportArrivalAsync(string transportId, double currentLatitude, double currentLongitude, CancellationToken cancellationToken = default);
 }
 
 public sealed class OrderService : IOrderService
@@ -21,6 +23,7 @@ public sealed class OrderService : IOrderService
     private readonly ILocationRepository _locationRepository;
     private readonly IArticleRepository _articleRepository;
     private readonly ICarrierRepository _carrierRepository;
+    private readonly IWarehouseRepository _warehouseRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public OrderService(
@@ -29,6 +32,7 @@ public sealed class OrderService : IOrderService
         ILocationRepository locationRepository,
         IArticleRepository articleRepository,
         ICarrierRepository carrierRepository,
+        IWarehouseRepository warehouseRepository,
         IUnitOfWork unitOfWork)
     {
         _directions = directions;
@@ -36,6 +40,7 @@ public sealed class OrderService : IOrderService
         _locationRepository = locationRepository;
         _articleRepository = articleRepository;
         _carrierRepository = carrierRepository;
+        _warehouseRepository = warehouseRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -168,6 +173,104 @@ public sealed class OrderService : IOrderService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task MarkTransportAsArrivedAsync(string transportId, CancellationToken cancellationToken = default)
+    {
+        var orders = await _orderRepository.GetAllAsync(cancellationToken);
+        var order = orders.FirstOrDefault(o => o.Transports.Any(t => t.TransportId == transportId));
+
+        if (order == null)
+            throw new InvalidOperationException($"Order with transportId '{transportId}' not found");
+
+        var transport = order.Transports.First(t => t.TransportId == transportId);
+        transport.Complete(); // Use Complete instead of MarkAsArrived
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task HandleTransportArrivalAsync(string transportId, double currentLatitude, double currentLongitude, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(transportId))
+            throw new ArgumentException("TransportId cannot be null or empty", nameof(transportId));
+
+        // Find the order and transport
+        var orders = await _orderRepository.GetAllAsync(cancellationToken);
+        var order = orders.FirstOrDefault(o => o.Transports.Any(t => t.TransportId == transportId));
+
+        if (order == null)
+            throw new InvalidOperationException($"Order with transportId '{transportId}' not found");
+
+        var transport = order.Transports.First(t => t.TransportId == transportId);
+
+        // Check if we've arrived at a warehouse
+        var warehouse = await _warehouseRepository.GetByLocationAsync(currentLatitude, currentLongitude, 200, cancellationToken);
+
+        if (warehouse != null)
+        {
+            Console.WriteLine($"Transport {transportId} arrived at warehouse: {warehouse.Name}");
+
+            // Determine which waypoint we've arrived at
+            var currentWaypoint = DetermineCurrentWaypoint(transport, currentLatitude, currentLongitude);
+
+            if (currentWaypoint != null)
+            {
+                // Record arrival time
+                currentWaypoint.RecordArrival(DateTime.UtcNow);
+                Console.WriteLine($"Recorded arrival at waypoint with location: {currentWaypoint.Location.City}");
+
+                // Check if warehouse has gates
+                if (warehouse.Gates.Any(g => g.IsActive))
+                {
+                    // Set status to waiting for gate assignment
+                    transport.SetWaiting();
+                    Console.WriteLine($"Transport {transportId} is waiting for gate assignment at {warehouse.Name}");
+                }
+                else
+                {
+                    // No gates, complete the waypoint immediately
+                    transport.Complete();
+                    Console.WriteLine($"Transport {transportId} completed arrival at {warehouse.Name} (no gates)");
+                }
+            }
+        }
+        else
+        {
+            // Not at a warehouse, complete the transport
+            transport.Complete();
+            Console.WriteLine($"Transport {transportId} completed - not at a recognized warehouse location");
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private Waypoint? DetermineCurrentWaypoint(Transport transport, double currentLatitude, double currentLongitude)
+    {
+        var tolerance = 0.002; // ~200 meters tolerance in degrees
+
+        // Check destination first
+        if (transport.Destination != null &&
+            IsLocationMatch(transport.Destination.Location, currentLatitude, currentLongitude, tolerance))
+        {
+            return transport.Destination;
+        }
+
+        // Check stopps
+        foreach (var stopp in transport.Stopps.OrderBy(s => s.SequenceNumber))
+        {
+            if (IsLocationMatch(stopp.Location, currentLatitude, currentLongitude, tolerance))
+            {
+                return stopp;
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsLocationMatch(Location location, double currentLatitude, double currentLongitude, double tolerance)
+    {
+        return Math.Abs(location.Latitude - currentLatitude) <= tolerance &&
+               Math.Abs(location.Longitude - currentLongitude) <= tolerance;
     }
 
     private async Task<Article> GetOrCreateArticleAsync(ArticleDto articleDto, CancellationToken cancellationToken)

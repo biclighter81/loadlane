@@ -36,7 +36,9 @@ public class TripHub : Hub
     public async Task SubscribeToOrders()
     {
         var orders = await _orderService.GetAllOrdersAsync();
-        orders = orders.Where(o => o.Transport.Status == TransportStatus.Accepted || o.Transport.Status == TransportStatus.InProgress).ToList();
+        orders = orders.Where(o => o.Transport.Status == TransportStatus.Accepted ||
+                                  o.Transport.Status == TransportStatus.InProgress ||
+                                  o.Transport.Status == TransportStatus.Waiting).ToList();
 
         foreach (var order in orders)
         {
@@ -47,22 +49,17 @@ public class TripHub : Hub
             // Add client to transport-specific group
             await Groups.AddToGroupAsync(Context.ConnectionId, $"transport:{order.Transport.TransportId}");
 
-            // Send Transport event to client
-            await Clients.Caller.SendAsync("Transport", new
-            {
-                orderId = order.Id,
-                transportId = order.Transport.TransportId,
-                status = order.Transport.Status.ToString(),
-                carrier = order.Transport.Carrier?.Name,
-                startLocation = order.Transport.StartLocation,
-                destinationLocation = order.Transport.DestinationLocation,
-                stopps = order.Transport.Stopps
-            });
+            // Send complete Order event to client (not just transport)
+            await Clients.Caller.SendAsync("Order", order);
 
-            // Start position simulation for this transport using global speed control
-            _ = Task.Run(() => SimulateTransportPositions(
-                order.Transport.TransportId,
-                order.DirectionsCacheKey), CancellationToken.None);
+            // Only start simulation for InProgress transports (not Waiting)
+            if (order.Transport.Status == TransportStatus.InProgress || order.Transport.Status == TransportStatus.Accepted)
+            {
+                // Start position simulation for this transport using global speed control
+                _ = Task.Run(() => SimulateTransportPositions(
+                    order.Transport.TransportId,
+                    order.DirectionsCacheKey), CancellationToken.None);
+            }
         }
     }
 
@@ -179,23 +176,26 @@ public class TripHub : Hub
                 await Task.Delay(tickMs, cancellationToken);
             }
 
-            // Transport completed - final broadcast and cleanup
-            await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportCompleted", new
+            // Transport completed - get final position for waypoint determination
+            var finalPosition = runner.At(metersAlong);
+
+            // Final broadcast
+            await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
             {
                 transportId
             }, cancellationToken);
 
-            // Update DB state to 'Completed' using a new scope
+            // Handle arrival logic using a new scope
             try
             {
                 using var scope = _serviceScopeFactory.CreateScope();
                 var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-                await orderService.UpdateTransportStatusAsync(transportId, Loadlane.Domain.Enums.TransportStatus.Completed, cancellationToken);
-                Console.WriteLine($"Transport {transportId} status updated to Completed in database");
+                await orderService.HandleTransportArrivalAsync(transportId, finalPosition.lat, finalPosition.lng, cancellationToken);
+                Console.WriteLine($"Transport {transportId} arrival handled successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to update transport {transportId} status to Completed: {ex.Message}");
+                Console.WriteLine($"Failed to handle transport {transportId} arrival: {ex.Message}");
             }
 
             // Clean up simulation state
@@ -313,6 +313,48 @@ public class TripHub : Hub
     public async Task<double> GetGlobalSimulationSpeed()
     {
         return await _globalSimStore.GetSpeedMultiplierAsync();
+    }
+
+    /// <summary>
+    /// Starts simulation for a waiting transport (e.g., when gate is assigned)
+    /// </summary>
+    /// <param name="transportId">The transport identifier</param>
+    public async Task StartWaitingTransport(string transportId)
+    {
+        if (string.IsNullOrEmpty(transportId))
+            return;
+
+        try
+        {
+            // Update transport status to InProgress using service scope
+            using var scope = _serviceScopeFactory.CreateScope();
+            var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+            await orderService.UpdateTransportStatusAsync(transportId, TransportStatus.InProgress);
+
+            // Get the order to retrieve route cache key
+            var orders = await orderService.GetAllOrdersAsync();
+            var order = orders.FirstOrDefault(o => o.Transport.TransportId == transportId);
+
+            if (order != null && !string.IsNullOrEmpty(order.DirectionsCacheKey))
+            {
+                // Broadcast status update to all clients
+                await _hubContext.Clients.All.SendAsync("TransportStatusChanged", new
+                {
+                    transportId,
+                    status = TransportStatus.InProgress.ToString(),
+                    order = order
+                });
+
+                // Start simulation
+                _ = Task.Run(() => SimulateTransportPositions(transportId, order.DirectionsCacheKey), CancellationToken.None);
+
+                Console.WriteLine($"Started simulation for waiting transport: {transportId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting waiting transport {transportId}: {ex.Message}");
+        }
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

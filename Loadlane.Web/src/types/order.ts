@@ -101,10 +101,14 @@ export interface TransportResponse {
 }
 
 export type TransportStatus =
-  | 'Planned'
-  | 'InTransit'
-  | 'Completed'
-  | 'Cancelled';
+  | "Draft"
+  | "Pending"
+  | "Accepted"
+  | "Rejected"
+  | "InProgress"
+  | "Completed"
+  | "Cancelled"
+  | "Waiting";
 
 // Waypoint with warehouse option
 export interface WaypointFormData {
