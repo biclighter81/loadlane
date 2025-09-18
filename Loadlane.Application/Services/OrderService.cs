@@ -54,9 +54,9 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException($"Order with external order number '{createOrderDto.ExtOrderNo}' already exists.");
         }
 
-        // Create or get existing entities
-        var article = await GetOrCreateArticleAsync(createOrderDto.Article, cancellationToken);
-        var carrier = await GetOrCreateCarrierAsync(createOrderDto.Carrier, cancellationToken);
+        // Get existing entities by ID (direct access, no validation)
+        var article = await _articleRepository.GetByIdAsync(createOrderDto.ArticleId, cancellationToken);
+        var carrier = await _carrierRepository.GetByIdAsync(createOrderDto.CarrierId, cancellationToken);
         var startLocation = await GetOrCreateLocationAsync(createOrderDto.StartLocation, cancellationToken);
         var destinationLocation = await GetOrCreateLocationAsync(createOrderDto.DestinationLocation, cancellationToken);
 
@@ -386,36 +386,6 @@ public sealed class OrderService : IOrderService
         return transport.Destination;
     }
 
-    private async Task<Article> GetOrCreateArticleAsync(ArticleDto articleDto, CancellationToken cancellationToken)
-    {
-        var existingArticle = await _articleRepository.GetByNameAsync(articleDto.Name, cancellationToken);
-        if (existingArticle != null)
-        {
-            return existingArticle;
-        }
-
-        var article = new Article(articleDto.Name, articleDto.Description);
-        if (articleDto.Weight.HasValue && articleDto.Volume.HasValue)
-        {
-            article.SetDimensions(articleDto.Weight.Value, articleDto.Volume.Value);
-        }
-
-        await _articleRepository.AddAsync(article, cancellationToken);
-        return article;
-    }
-
-    private async Task<Carrier> GetOrCreateCarrierAsync(CarrierDto carrierDto, CancellationToken cancellationToken)
-    {
-        var existingCarrier = await _carrierRepository.GetByNameAsync(carrierDto.Name, cancellationToken);
-        if (existingCarrier != null)
-        {
-            return existingCarrier;
-        }
-
-        var carrier = new Carrier(carrierDto.Name, carrierDto.ContactEmail, carrierDto.ContactPhone);
-        await _carrierRepository.AddAsync(carrier, cancellationToken);
-        return carrier;
-    }
 
     private async Task<Location> GetOrCreateLocationAsync(LocationDto locationDto, CancellationToken cancellationToken)
     {

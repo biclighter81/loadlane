@@ -70,8 +70,8 @@ export interface StoppResponse {
 export interface CreateOrderRequest {
   extOrderNo: string;
   quantity: number;
-  article: Article;
-  carrier: Carrier;
+  articleId: string;
+  carrierId: string;
   startLocation: Location;
   destinationLocation: Location;
   plannedDeparture?: Date;
@@ -123,12 +123,12 @@ export interface WaypointFormData {
 export interface OrderFormData {
   extOrderNo: string;
   quantity: number;
-  articleId?: string;
+  articleId: string;
   articleName?: string;
   articleDescription?: string;
   articleWeight?: number;
   articleVolume?: number;
-  carrierId?: string;
+  carrierId: string;
   startLocation: Location;
   destinationLocation: Location;
   plannedDeparture?: Date;

@@ -3,8 +3,8 @@ namespace Loadlane.Application.DTOs;
 public sealed record CreateOrderDto(
     string ExtOrderNo,
     int Quantity,
-    ArticleDto Article,
-    CarrierDto Carrier,
+    Guid ArticleId,
+    Guid CarrierId,
     LocationDto StartLocation,
     LocationDto DestinationLocation,
     DateTime? PlannedDeparture = null,

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Truck, Mail, Phone, AlertCircle, Plus, Loader2, Edit, MoreHorizontal, Trash2 } from "lucide-react";
 import { useCarriers } from "../hooks/useCarrier";
