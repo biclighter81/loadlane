@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text.Json;
 using Application.Services;
 using Loadlane.Application.Services;
-using Loadlane.Application.DTOs;
+using Loadlane.Domain.Enums;
 using Microsoft.AspNetCore.SignalR;
-using AppRoute = Application.Records.Route;
 
 namespace Loadlane.Api.Hubs;
 
@@ -22,9 +20,6 @@ public class TripHub : Hub
     // Track running simulations by transportId
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _activeSimulations = new();
 
-    // Groups for transport-specific broadcasts
-    private readonly IGroupManager _groups;
-
     public TripHub(DirectionsService directions, IOrderService orderService, RouteSampler sampler,
                    SimStateStore simStateStore, GlobalSimulationStore globalSimStore, IHubContext<TripHub> hubContext,
                    IServiceScopeFactory serviceScopeFactory)
@@ -36,12 +31,12 @@ public class TripHub : Hub
         _globalSimStore = globalSimStore;
         _hubContext = hubContext;
         _serviceScopeFactory = serviceScopeFactory;
-        _groups = _hubContext.Groups;
     }
 
     public async Task SubscribeToOrders()
     {
         var orders = await _orderService.GetAllOrdersAsync();
+        orders = orders.Where(o => o.Transport.Status == TransportStatus.Accepted || o.Transport.Status == TransportStatus.InProgress).ToList();
 
         foreach (var order in orders)
         {
@@ -111,8 +106,8 @@ public class TripHub : Hub
             }
 
             // Resample route to ~20m steps for smooth interpolation
-            var resampledCoords = _sampler.Resample(route.Coords, stepMeters: 20);
-            var runner = new PolylineRunner(resampledCoords);
+            //var resampledCoords = _sampler.Resample(route.Coords, stepMeters: 20);
+            var runner = new PolylineRunner(route.Coords);
 
             // Load or initialize simulation state
             var savedState = await _simStateStore.GetAsync(transportId);

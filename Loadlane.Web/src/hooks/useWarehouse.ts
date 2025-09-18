@@ -9,6 +9,7 @@ import type {
   UpdateGateRequest,
   GateSimpleResponse
 } from '../types/warehouse';
+import {toast} from 'sonner';
 
 // Hook for managing multiple warehouses
 export function useWarehouses() {
@@ -152,7 +153,7 @@ export function useWarehouseGates(warehouseId: string | undefined) {
       return newGate;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create gate';
-      setError(errorMessage);
+      toast.error(errorMessage);
       throw err;
     }
   };
