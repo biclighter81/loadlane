@@ -175,18 +175,14 @@ public class TripHub : Hub
 
             if (savedState != null && savedState.RouteKey == routeCacheKey)
             {
-                // Resume from saved state, accounting for time elapsed using current global speed
-                var currentSpeed = await _globalSimStore.GetCurrentSpeedAsync();
-                var elapsedTime = DateTimeOffset.UtcNow - savedState.UpdatedUtc;
-                var elapsedSeconds = elapsedTime.TotalSeconds;
-                startMetersAlong = savedState.MetersAlong + (currentSpeed * elapsedSeconds);
-
-                // Clamp to route bounds
-                startMetersAlong = Math.Max(0, Math.Min(startMetersAlong, runner.TotalMeters));
-
                 // Resume from the correct waypoint index
                 currentWaypointIndex = savedState.CurrentWaypointIndex;
-                Console.WriteLine($"Resuming transport {transportId} from waypoint index {currentWaypointIndex} at {startMetersAlong:F0}m");
+
+                // For continuing transports, start from the saved position without time advancement
+                // to prevent jumping ahead on the route
+                startMetersAlong = savedState.MetersAlong;
+
+                Console.WriteLine($"Resuming transport {transportId} from waypoint index {currentWaypointIndex} at exact saved position {startMetersAlong:F0}m");
             }
 
             // Broadcast route information once
@@ -241,6 +237,8 @@ public class TripHub : Hub
             var stopwatch = Stopwatch.StartNew();
             double metersAlong = startMetersAlong;
             var lastPersistTime = DateTimeOffset.UtcNow;
+
+            Console.WriteLine($"Starting simulation for {transportId}: waypoints.Count={waypoints.Count}, currentWaypointIndex={currentWaypointIndex}, startMetersAlong={startMetersAlong:F0}m, totalRouteMeters={runner.TotalMeters:F0}m");
 
             while (metersAlong < runner.TotalMeters && !cancellationToken.IsCancellationRequested)
             {
@@ -362,6 +360,8 @@ public class TripHub : Hub
 
             // Only send final arrival event if we haven't already handled the final destination
             var finalDestinationIndex = waypoints.Count - 1;
+            Console.WriteLine($"Transport {transportId} completed route: finalDestinationIndex={finalDestinationIndex}, currentWaypointIndex={currentWaypointIndex}, metersAlong={metersAlong:F0}m");
+
             if (finalDestinationIndex >= 0 && currentWaypointIndex <= finalDestinationIndex)
             {
                 // Use exact destination coordinates instead of route position
