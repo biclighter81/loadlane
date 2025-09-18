@@ -52,7 +52,7 @@ public class TripHub : Hub
             // Send complete Order event to client (not just transport)
             await Clients.Caller.SendAsync("Order", order);
 
-            // Only start simulation for InProgress transports (not Waiting)
+            // Handle different transport statuses
             if (order.Transport.Status == TransportStatus.InProgress || order.Transport.Status == TransportStatus.Accepted)
             {
                 // Start position simulation for this transport using global speed control
@@ -60,6 +60,68 @@ public class TripHub : Hub
                     order.Transport.TransportId,
                     order.DirectionsCacheKey), CancellationToken.None);
             }
+            else if (order.Transport.Status == TransportStatus.Waiting)
+            {
+                // For waiting transports, get their current position from simulation state and display them there
+                _ = Task.Run(async () => await ShowWaitingTransportAtCurrentPosition(order.Transport.TransportId, order.DirectionsCacheKey));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Shows a waiting transport at its current simulation state position (where it stopped)
+    /// </summary>
+    /// <param name="transportId">The transport identifier</param>
+    /// <param name="routeCacheKey">Cache key for the route data</param>
+    private async Task ShowWaitingTransportAtCurrentPosition(string transportId, string routeCacheKey)
+    {
+        if (string.IsNullOrEmpty(transportId) || string.IsNullOrEmpty(routeCacheKey))
+            return;
+
+        try
+        {
+            // Get saved simulation state
+            var savedState = await _simStateStore.GetAsync(transportId);
+            if (savedState == null || savedState.RouteKey != routeCacheKey)
+            {
+                Console.WriteLine($"No simulation state found for waiting transport {transportId}");
+                return;
+            }
+
+            // Get route from cache
+            var route = await _directions.GetCachedRouteAsync(routeCacheKey);
+            if (route == null)
+            {
+                Console.WriteLine($"Route not found in cache for waiting transport {transportId}: {routeCacheKey}");
+                return;
+            }
+
+            // Calculate current position on route
+            var runner = new PolylineRunner(route.Coords);
+            var currentPosition = runner.At(savedState.MetersAlong);
+
+            // Send route information
+            await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("Route", new
+            {
+                transportId,
+                distance = route.DistanceMeters,
+                duration = route.DurationSeconds,
+                coordinates = route.Coords.Select(p => new[] { p.lng, p.lat }).ToArray()
+            });
+
+            // Send current position where the transport is waiting
+            await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("Position", new
+            {
+                transportId,
+                lng = currentPosition.lng,
+                lat = currentPosition.lat
+            });
+
+            Console.WriteLine($"Positioned waiting transport {transportId} at current state: {currentPosition.lat:F6}, {currentPosition.lng:F6} (meters: {savedState.MetersAlong:F0})");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error positioning waiting transport {transportId}: {ex.Message}");
         }
     }
 
@@ -131,6 +193,39 @@ public class TripHub : Hub
                 coordinates = route.Coords.Select(p => new[] { p.lng, p.lat }).ToArray()
             }, cancellationToken);
 
+            // Get transport waypoints for arrival detection
+            List<(double lat, double lng, bool isDestination)> waypoints = new();
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+                var orders = await orderService.GetAllOrdersAsync();
+                var order = orders.FirstOrDefault(o => o.Transport.TransportId == transportId);
+
+                if (order?.Transport != null)
+                {
+                    // Add all stopps as waypoints
+                    foreach (var stopp in order.Transport.Stopps.OrderBy(s => s.SequenceNumber))
+                    {
+                        waypoints.Add((stopp.Location.Latitude, stopp.Location.Longitude, false));
+                    }
+
+                    // Add destination as final waypoint
+                    if (order.Transport.DestinationLocation != null)
+                    {
+                        waypoints.Add((order.Transport.DestinationLocation.Latitude, order.Transport.DestinationLocation.Longitude, true));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading waypoints for transport {transportId}: {ex.Message}");
+            }
+
+            // Track visited waypoints
+            var visitedWaypoints = new HashSet<int>();
+            const double waypointToleranceMeters = 200; // 200m tolerance for waypoint detection
+
             // Time-based simulation loop with global speed
             const int tickMs = 100; // 10 Hz
             var stopwatch = Stopwatch.StartNew();
@@ -154,6 +249,67 @@ public class TripHub : Hub
 
                 // Get current position
                 var position = runner.At(metersAlong);
+
+                // Check for waypoint arrivals
+                for (int i = 0; i < waypoints.Count; i++)
+                {
+                    if (visitedWaypoints.Contains(i)) continue; // Already visited this waypoint
+
+                    var waypoint = waypoints[i];
+                    var distance = CalculateDistance(position.lat, position.lng, waypoint.lat, waypoint.lng);
+
+                    if (distance <= waypointToleranceMeters)
+                    {
+                        visitedWaypoints.Add(i);
+
+                        // Send arrival event for this waypoint
+                        await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
+                        {
+                            transportId,
+                            isIntermediateWaypoint = !waypoint.isDestination,
+                            waypointIndex = i,
+                            lat = waypoint.lat,
+                            lng = waypoint.lng
+                        }, cancellationToken);
+
+                        // Handle arrival logic for this waypoint
+                        try
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+                            await orderService.HandleTransportArrivalAsync(transportId, waypoint.lat, waypoint.lng, cancellationToken);
+                            Console.WriteLine($"Transport {transportId} arrived at waypoint {i} ({waypoint.lat:F6}, {waypoint.lng:F6})");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Failed to handle transport {transportId} arrival at waypoint {i}: {ex.Message}");
+                        }
+
+                        // If this is an intermediate waypoint and transport is now waiting, stop simulation
+                        if (!waypoint.isDestination)
+                        {
+                            try
+                            {
+                                using var scope = _serviceScopeFactory.CreateScope();
+                                var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+                                var orders = await orderService.GetAllOrdersAsync();
+                                var currentOrder = orders.FirstOrDefault(o => o.Transport.TransportId == transportId);
+
+                                if (currentOrder?.Transport.Status == TransportStatus.Waiting)
+                                {
+                                    Console.WriteLine($"Transport {transportId} is waiting at waypoint {i}, stopping simulation");
+                                    // Clean up active simulation but KEEP the state in Redis for positioning
+                                    _activeSimulations.TryRemove(transportId, out _);
+                                    return;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error checking transport status after waypoint arrival: {ex.Message}");
+                            }
+                        }
+                    }
+                }
 
                 // Broadcast position update
                 await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("Position", new
@@ -179,27 +335,40 @@ public class TripHub : Hub
             // Transport completed - get final position for waypoint determination
             var finalPosition = runner.At(metersAlong);
 
-            // Final broadcast
-            await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
+            // Only send final arrival event if we haven't already handled the final destination
+            var finalDestinationIndex = waypoints.Count - 1;
+            if (finalDestinationIndex >= 0 && !visitedWaypoints.Contains(finalDestinationIndex))
             {
-                transportId
-            }, cancellationToken);
+                // Final broadcast
+                await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
+                {
+                    transportId,
+                    isIntermediateWaypoint = false,
+                    waypointIndex = finalDestinationIndex,
+                    lat = finalPosition.lat,
+                    lng = finalPosition.lng
+                }, cancellationToken);
 
-            // Handle arrival logic using a new scope
-            try
-            {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-                await orderService.HandleTransportArrivalAsync(transportId, finalPosition.lat, finalPosition.lng, cancellationToken);
-                Console.WriteLine($"Transport {transportId} arrival handled successfully");
+                // Handle arrival logic using a new scope
+                try
+                {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+                    await orderService.HandleTransportArrivalAsync(transportId, finalPosition.lat, finalPosition.lng, cancellationToken);
+                    Console.WriteLine($"Transport {transportId} arrival handled successfully");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to handle transport {transportId} arrival: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Failed to handle transport {transportId} arrival: {ex.Message}");
+                Console.WriteLine($"Transport {transportId} simulation completed - final destination already handled during route");
             }
 
             // Clean up simulation state
-            await _simStateStore.RemoveAsync(transportId);
+            // await _simStateStore.RemoveAsync(transportId);
             _activeSimulations.TryRemove(transportId, out _);
         }
         catch (OperationCanceledException)
@@ -362,5 +531,24 @@ public class TripHub : Hub
         // Remove client from all transport groups they might be in
         // Note: SignalR automatically handles group cleanup on disconnect
         await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Calculates the distance between two geographic points in meters using Haversine formula
+    /// </summary>
+    private static double CalculateDistance(double lat1, double lng1, double lat2, double lng2)
+    {
+        const double earthRadius = 6371000; // Earth radius in meters
+
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLng = (lng2 - lng1) * Math.PI / 180;
+
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
+                Math.Sin(dLng / 2) * Math.Sin(dLng / 2);
+
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return earthRadius * c;
     }
 }
