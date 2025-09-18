@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+    <defs>
+        <style>
+            .favicon-1 {
+            fill: none;
+            }
+
+            .favicon-2 {
+            fill: #004899;
+            }
+
+            .favicon-3 {
+            clip-path: url(#clippath);
+            }
+        </style>
+        <clipPath id="clippath">
+            <rect class="favicon-1" width="32" height="32"/>
+        </clipPath>
+    </defs>
+    <g id="Brand_mark" data-name="Brand mark">
+        <g class="favicon-3">
+            <polygon class="favicon-2" points="20.177834589545455 16.268903187827163 29.238623369841662 7.766001127693926 20.306293282737897 7.766001127693926 11.216376301918899 16.268903187827163 20.177834589545455 16.268903187827163"/>
+            <polygon class="favicon-2" points="22.586877275356528 24.243657175147746 29.187728612847422 18.02622358930239 9.342967599264739 18.02622358930239 2.696047027989152 24.243657175147746 22.586877275356528 24.243657175147746"/>
+            <path class="favicon-2" d="M1.627237629466435,1.627117444912983h28.740770421537491v28.740353630576465H1.627237629466435V1.627117444912983ZM0,32h32V0H0v32Z"/>
+        </g>
+    </g>
+</svg>

@@ -1,5 +1,5 @@
 import { useState, forwardRef, useImperativeHandle } from 'react';
-import { Check, ChevronsUpDown, Package, Plus, Scale, Box } from 'lucide-react';
+import { Check, ChevronsUpDown, Truck, Plus, Mail, Phone } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   Command,
@@ -14,44 +14,43 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '../ui/popover';
-import { Badge } from '../ui/badge';
-import { useArticles } from '../../hooks/useArticle';
-import type { ArticleResponse } from '../../types/article';
+import { useCarriers } from '../../hooks/useCarrier';
+import type { CarrierResponse } from '../../types/carrier';
 
-interface ArticleSelectorProps {
-  value?: string; // Article ID
-  onChange: (article: ArticleResponse | null) => void;
+interface CarrierSelectorProps {
+  value?: string; // Carrier ID
+  onChange: (carrier: CarrierResponse | null) => void;
   placeholder?: string;
   onCreateNew?: () => void;
 }
 
-export interface ArticleSelectorRef {
+export interface CarrierSelectorRef {
   refresh: () => void;
 }
 
-export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorProps>(({
+export const CarrierSelector = forwardRef<CarrierSelectorRef, CarrierSelectorProps>(({
   value,
   onChange,
-  placeholder = "Select article...",
+  placeholder = "Select carrier...",
   onCreateNew,
 }, ref) => {
   const [open, setOpen] = useState(false);
 
-  const { articles, loading, refetch } = useArticles();
-
-  const selectedArticle = articles.find(article => article.id === value);
+  const { carriers, loading, refetch } = useCarriers();
 
   // Expose refetch function via ref
   useImperativeHandle(ref, () => ({
     refresh: refetch,
   }));
 
-  const displayValue = selectedArticle
-    ? selectedArticle.name
+  const selectedCarrier = carriers.find(carrier => carrier.id === value);
+
+  const displayValue = selectedCarrier
+    ? selectedCarrier.name
     : placeholder;
 
-  const handleArticleSelect = (article: ArticleResponse) => {
-    onChange(article);
+  const handleCarrierSelect = (carrier: CarrierResponse) => {
+    onChange(carrier);
     setOpen(false);
   };
 
@@ -71,7 +70,7 @@ export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorPro
             className="w-full justify-between"
           >
             <div className="flex items-center space-x-2 truncate">
-              <Package className="h-4 w-4 text-primary" />
+              <Truck className="h-4 w-4 text-primary" />
               <span className="truncate">{displayValue}</span>
             </div>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -79,46 +78,41 @@ export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorPro
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" align="start">
           <Command>
-            <CommandInput placeholder="Search articles..." />
+            <CommandInput placeholder="Search carriers..." />
             <CommandList>
               <CommandEmpty>
-                {loading ? "Loading articles..." : "No articles found."}
+                {loading ? "Loading carriers..." : "No carriers found."}
               </CommandEmpty>
-              {articles.length > 0 && (
-                <CommandGroup heading="Available Articles">
-                  {articles.map((article) => (
+              {carriers.length > 0 && (
+                <CommandGroup heading="Available Carriers">
+                  {carriers.map((carrier) => (
                     <CommandItem
-                      key={article.id}
-                      onSelect={() => handleArticleSelect(article)}
+                      key={carrier.id}
+                      onSelect={() => handleCarrierSelect(carrier)}
                       className="cursor-pointer"
                     >
                       <div className="flex items-center space-x-2 flex-1">
-                        <Package className="h-4 w-4 text-primary" />
+                        <Truck className="h-4 w-4 text-primary" />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{article.name}</div>
-                          {article.description && (
-                            <div className="text-sm text-muted-foreground truncate">
-                              {article.description}
-                            </div>
-                          )}
-                          {(article.weight || article.volume) && (
+                          <div className="font-medium truncate">{carrier.name}</div>
+                          {(carrier.contactEmail || carrier.contactPhone) && (
                             <div className="flex items-center space-x-2 mt-1">
-                              {article.weight && (
+                              {carrier.contactEmail && (
                                 <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                                  <Scale className="h-3 w-3" />
-                                  <span>{article.weight} kg</span>
+                                  <Mail className="h-3 w-3" />
+                                  <span className="truncate">{carrier.contactEmail}</span>
                                 </div>
                               )}
-                              {article.volume && (
+                              {carrier.contactPhone && (
                                 <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                                  <Box className="h-3 w-3" />
-                                  <span>{article.volume} m³</span>
+                                  <Phone className="h-3 w-3" />
+                                  <span>{carrier.contactPhone}</span>
                                 </div>
                               )}
                             </div>
                           )}
                         </div>
-                        {selectedArticle?.id === article.id && (
+                        {selectedCarrier?.id === carrier.id && (
                           <Check className="h-4 w-4" />
                         )}
                       </div>
@@ -147,7 +141,7 @@ export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorPro
                   >
                     <div className="flex items-center space-x-2">
                       <Plus className="h-4 w-4" />
-                      <span>Create new article</span>
+                      <span>Create new carrier</span>
                     </div>
                   </CommandItem>
                 )}
@@ -156,23 +150,6 @@ export const ArticleSelector = forwardRef<ArticleSelectorRef, ArticleSelectorPro
           </Command>
         </PopoverContent>
       </Popover>
-
-      {selectedArticle && (
-        <div className="flex flex-wrap gap-1">
-          {selectedArticle.weight && (
-            <Badge variant="outline" className="text-xs">
-              <Scale className="h-3 w-3 mr-1" />
-              {selectedArticle.weight} kg
-            </Badge>
-          )}
-          {selectedArticle.volume && (
-            <Badge variant="outline" className="text-xs">
-              <Box className="h-3 w-3 mr-1" />
-              {selectedArticle.volume} m³
-            </Badge>
-          )}
-        </div>
-      )}
     </div>
   );
 });

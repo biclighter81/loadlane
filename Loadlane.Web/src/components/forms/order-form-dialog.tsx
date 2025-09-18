@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -18,24 +19,23 @@ import {
   FormMessage,
 } from '../ui/form';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Loader2, Plus, Trash2, MapPin, Package, Truck } from 'lucide-react';
 import { LocationSelector } from './location-selector';
 import { ArticleSelector } from './article-selector';
+import { CarrierSelector } from './carrier-selector';
+import type { LocationSelectorRef } from './location-selector';
+import type { ArticleSelectorRef } from './article-selector';
+import type { CarrierSelectorRef } from './carrier-selector';
 import { ArticleFormDialog } from './article-form-dialog';
+import { CarrierFormDialog } from './carrier-form-dialog';
 import { useCarriers } from '../../hooks/useCarrier';
 import { useArticles } from '../../hooks/useArticle';
+import { validateDifferentLocations } from '../../utils/locationValidation';
 import type { CreateOrderRequest, OrderFormData, Location } from '../../types/order';
 import type { CreateArticleRequest, ArticleResponse } from '../../types/article';
+import type { CreateCarrierRequest, CarrierResponse } from '../../types/carrier';
 
 interface OrderFormDialogProps {
   open: boolean;
@@ -54,10 +54,16 @@ const defaultLocation: Location = {
 
 export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [useExistingCarrier, setUseExistingCarrier] = useState(true);
   const [isArticleDialogOpen, setIsArticleDialogOpen] = useState(false);
+  const [isCarrierDialogOpen, setIsCarrierDialogOpen] = useState(false);
 
-  const { carriers, loading: carriersLoading } = useCarriers();
+  // Refs for selector components
+  const articleSelectorRef = useRef<ArticleSelectorRef>(null);
+  const carrierSelectorRef = useRef<CarrierSelectorRef>(null);
+  const startLocationSelectorRef = useRef<LocationSelectorRef>(null);
+  const destinationLocationSelectorRef = useRef<LocationSelectorRef>(null);
+
+  const { createCarrier, refetch: refetchCarriers } = useCarriers();
   const { createArticle, refetch: refetchArticles } = useArticles();
 
   const form = useForm<OrderFormData>({
@@ -70,9 +76,6 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
       articleWeight: undefined,
       articleVolume: undefined,
       carrierId: '',
-      carrierName: '',
-      carrierContactEmail: '',
-      carrierContactPhone: '',
       startLocation: defaultLocation,
       destinationLocation: defaultLocation,
       plannedDeparture: undefined,
@@ -98,16 +101,12 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
         articleWeight: undefined,
         articleVolume: undefined,
         carrierId: '',
-        carrierName: '',
-        carrierContactEmail: '',
-        carrierContactPhone: '',
         startLocation: defaultLocation,
         destinationLocation: defaultLocation,
         plannedDeparture: undefined,
         plannedArrival: undefined,
         waypoints: [],
       });
-      setUseExistingCarrier(true);
     }
   }, [open, form]);
 
@@ -137,28 +136,24 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
     try {
       setIsSubmitting(true);
 
-      // Prepare carrier data
-      let carrierData;
-      if (useExistingCarrier && data.carrierId) {
-        const selectedCarrier = carriers.find(c => c.id === data.carrierId);
-        if (selectedCarrier) {
-          carrierData = {
-            name: selectedCarrier.name,
-            contactEmail: selectedCarrier.contactEmail || undefined,
-            contactPhone: selectedCarrier.contactPhone || undefined,
-          };
-        }
-      } else {
-        carrierData = {
-          name: data.carrierName || '',
-          contactEmail: data.carrierContactEmail || undefined,
-          contactPhone: data.carrierContactPhone || undefined,
-        };
+      // Validate locations are different
+      const locationValidation = validateDifferentLocations(
+        data.startLocation,
+        data.destinationLocation
+      );
+
+      if (!locationValidation.isValid) {
+        throw new Error(locationValidation.message);
       }
 
-      if (!carrierData?.name) {
-        throw new Error('Carrier information is required');
+      // Prepare carrier data - carrierId is required now
+      if (!data.carrierId) {
+        throw new Error('Please select a carrier');
       }
+
+      const carrierData = {
+        name: '', // Will be filled by backend from carrierId
+      };
 
       // Prepare article data
       const articleData = {
@@ -191,6 +186,10 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
       handleClose();
     } catch (error) {
       console.error('Error creating order:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create order';
+      toast.error('Failed to create order', {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -212,14 +211,35 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
     }
   };
 
+  const handleCarrierSelect = (carrier: CarrierResponse | null) => {
+    if (carrier) {
+      form.setValue('carrierId', carrier.id);
+    } else {
+      form.setValue('carrierId', '');
+    }
+  };
+
   const handleCreateArticle = async (data: CreateArticleRequest) => {
     try {
       await createArticle(data);
       // Refresh the articles list to make the new article available in the selector
       refetchArticles();
+      articleSelectorRef.current?.refresh();
       setIsArticleDialogOpen(false);
     } catch (error) {
       console.error('Error creating article:', error);
+    }
+  };
+
+  const handleCreateCarrier = async (data: CreateCarrierRequest) => {
+    try {
+      await createCarrier(data);
+      // Refresh the carriers list to make the new carrier available in the selector
+      refetchCarriers();
+      carrierSelectorRef.current?.refresh();
+      setIsCarrierDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating carrier:', error);
     }
   };
 
@@ -270,6 +290,7 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
                       <FormLabel>Select Article</FormLabel>
                       <FormControl>
                         <ArticleSelector
+                          ref={articleSelectorRef}
                           value={field.value}
                           onChange={handleArticleSelect}
                           placeholder="Select an article for this order..."
@@ -303,109 +324,34 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
 
           
 
-            {/* Carrier Information */}
+            {/* Carrier Selection */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
                   <Truck className="h-5 w-5" />
-                  <span>Carrier Information</span>
+                  <span>Carrier Selection</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <Button
-                    type="button"
-                    variant={useExistingCarrier ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseExistingCarrier(true)}
-                  >
-                    Existing Carrier
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={!useExistingCarrier ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseExistingCarrier(false)}
-                  >
-                    New Carrier
-                  </Button>
-                </div>
-
-                {useExistingCarrier ? (
-                  <FormField
-                    control={form.control}
-                    name="carrierId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Select Carrier</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={carriersLoading ? "Loading carriers..." : "Select a carrier"} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {carriers.map((carrier) => (
-                              <SelectItem key={carrier.id} value={carrier.id}>
-                                {carrier.name}
-                                {carrier.contactEmail && (
-                                  <span className="text-muted-foreground text-sm ml-2">
-                                    ({carrier.contactEmail})
-                                  </span>
-                                )}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="carrierName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Carrier Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="DHL, UPS, etc." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="carrierContactEmail"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contact Email (Optional)</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="contact@carrier.com" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="carrierContactPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contact Phone (Optional)</FormLabel>
-                            <FormControl>
-                              <Input type="tel" placeholder="+49 30 12345678" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-                )}
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="carrierId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Select Carrier</FormLabel>
+                      <FormControl>
+                        <CarrierSelector
+                          ref={carrierSelectorRef}
+                          value={field.value}
+                          onChange={handleCarrierSelect}
+                          placeholder="Select a carrier for this order..."
+                          onCreateNew={() => setIsCarrierDialogOpen(true)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
 
@@ -427,9 +373,11 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
                         <FormLabel>Start Location</FormLabel>
                         <FormControl>
                           <LocationSelector
+                            ref={startLocationSelectorRef}
                             value={field.value}
                             onChange={field.onChange}
                             placeholder="Select start location..."
+                            excludeLocation={form.watch('destinationLocation')}
                           />
                         </FormControl>
                         <FormMessage />
@@ -445,9 +393,11 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
                         <FormLabel>Destination Location</FormLabel>
                         <FormControl>
                           <LocationSelector
+                            ref={destinationLocationSelectorRef}
                             value={field.value}
                             onChange={field.onChange}
                             placeholder="Select destination location..."
+                            excludeLocation={form.watch('startLocation')}
                           />
                         </FormControl>
                         <FormMessage />
@@ -609,6 +559,14 @@ export function OrderFormDialog({ open, onClose, onSubmit }: OrderFormDialogProp
         open={isArticleDialogOpen}
         onClose={() => setIsArticleDialogOpen(false)}
         onSubmit={handleCreateArticle}
+        mode="create"
+      />
+
+      {/* Carrier Creation Dialog */}
+      <CarrierFormDialog
+        open={isCarrierDialogOpen}
+        onClose={() => setIsCarrierDialogOpen(false)}
+        onSubmit={handleCreateCarrier}
         mode="create"
       />
     </Dialog>
