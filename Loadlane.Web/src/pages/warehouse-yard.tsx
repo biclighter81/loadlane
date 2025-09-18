@@ -60,6 +60,7 @@ export default function WarehouseYardPage() {
     const [docks, setDocks] = useState<DockData[]>([]);
     const [trucks, setTrucks] = useState<TruckData[]>([]);
     const [removingTrucks, setRemovingTrucks] = useState<number[]>([]);
+    const [waypointId, setWaypointId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +86,9 @@ export default function WarehouseYardPage() {
                     warehouseService.getWarehouseGates(id),
                     yardService.getDockedVehicles(id)
                 ];
+                const [warehouseData, gatesData, yardData] = await Promise.all(promises);
 
+                setWarehouse(warehouseData);
                 // Wenn transport_id Parameter vorhanden ist, lade auch die Order
                 if (transportId) {
                     // Finde Order anhand der transportId
@@ -103,30 +106,24 @@ export default function WarehouseYardPage() {
                         
                         // Lade und gebe Waypoints für diesen Transport aus
                         try {
-                            const waypoints = await waypointService.getWaypointsByTransportId(foundOrder.transport.transportId);
-                            console.log('Waypoints für Transport', transportId, ':', waypoints);
-                            
+                            const waypoints = (await waypointService.getWaypointsByTransportId(foundOrder.transport.id));
+                            const filteredWaypoints = waypoints.find(wp => wp.location.id === warehouseData.location.id);
+                            console.log('Waypoints for transport:', filteredWaypoints);
+                            if (filteredWaypoints) {
+                                setWaypointId(filteredWaypoints.id);
+                                console.log(`Waypoint at this warehouse:`, filteredWaypoints);
+                            } else {
+                                console.log('No waypoint found for this warehouse.');
+                            }
                             // Zusätzliche Details der Waypoints ausgeben
-                            waypoints.forEach((waypoint, index) => {
-                                console.log(`Waypoint ${index + 1}:`, {
-                                    id: waypoint.id,
-                                    location: `${waypoint.location.street} ${waypoint.location.houseNo}, ${waypoint.location.city}`,
-                                    plannedArrival: waypoint.plannedArrival,
-                                    actualArrival: waypoint.actualArrival,
-                                    hasArrived: waypoint.hasArrived,
-                                    isDelayed: waypoint.isDelayed,
-                                    gate: waypoint.gate ? `Gate ${waypoint.gate.number}` : 'Kein Gate zugewiesen'
-                                });
-                            });
+                           
                         } catch (error) {
                             console.error('Fehler beim Laden der Waypoints:', error);
                         }
                     }
                 }
 
-                const [warehouseData, gatesData, yardData] = await Promise.all(promises);
-
-                setWarehouse(warehouseData);
+       
             
                 // Erweitere Gates mit Status zu Docks
                 const enrichedDocks = gatesData.map(enrichGateWithStatus);
@@ -223,22 +220,38 @@ export default function WarehouseYardPage() {
                 trucks={trucks}
                 removingTrucks={removingTrucks}
                 warehouseText={warehouse.name}
-                onDockStatusChange={(dockId, newStatus) => {
+                onDockStatusChange={async (dockId, newStatus) => {
                     console.log(`Dock ${dockId} status changed to: ${newStatus}`);
-                    if(transportId) {
+                    if(transportId && waypointId) {
                     setDocks(prevDocks => 
                         prevDocks.map(dock => 
                             dock.number === dockId ? { ...dock, status: newStatus } : dock
                         )
                     );
+                    
+                    // API-Anfrage senden, um Gate-Status zu aktualisieren
+                    try {
+                        await yardService.updateGateStatus(waypointId, dockId, transportId);
+                    } catch (error) {
+                        console.error('Fehler beim Aktualisieren des Gate-Status:', error);
+                    }
                      }
-                    // Aktualisiere lokalen State
-                
                 }}
-                onTruckClick={(truckData, dockId) => {
+                onTruckClick={async (truckData, dockId) => {
                     console.log(`Truck ${truckData.id} clicked at dock ${dockId} - starting removal animation`);
                     // Füge den LKW zur Liste der zu entfernenden LKWs hinzu
                     setRemovingTrucks(prev => [...prev, truckData.id]);
+
+                    // API-Anfrage senden, um den LKW offiziell zu entfernen
+                    if (waypointId) {
+                        try {
+                            await yardService.removeDockedVehicle(waypointId, truckData.id);
+                        } catch (error) {
+                            console.error('Fehler beim Entfernen des Fahrzeugs:', error);
+                            // Bei Fehler den LKW wieder aus der Removal-Liste entfernen
+                            setRemovingTrucks(prev => prev.filter(id => id !== truckData.id));
+                        }
+                    }
                 }}
                 onTruckRemovalComplete={(truckId) => {
                     console.log(`Truck ${truckId} removal animation completed - removing from lists`);
