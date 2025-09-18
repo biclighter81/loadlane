@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { HubConnectionBuilder, HubConnection } from '@microsoft/signalr';
+import Confetti from 'react-confetti';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
@@ -80,6 +82,8 @@ export function MapComponent() {
     const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
     const [simulationSpeed, setSimulationSpeed] = useState<number>(1); // Speed multiplier (1x, 2x, 5x, etc.)
     const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false); // State for confetti animation
+    const [windowDimensions, setWindowDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
 
@@ -333,6 +337,19 @@ export function MapComponent() {
         return () => {
             mapInstance.remove();
         };
+    }, []);
+
+    // Handle window resize for confetti
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowDimensions({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     // Add warehouse markers when warehouse data is loaded
@@ -671,6 +688,55 @@ export function MapComponent() {
             }
         });
 
+        // Handle transport completion event - show green marker for 15 seconds
+        newConnection.on('TransportCompleted', (data: any) => {
+            console.log('Transport completed:', data);
+
+            // Update order state to reflect completion
+            setOrders(prevOrders => prevOrders.map(order => {
+                if (order.transport?.transportId === data.transportId) {
+                    return data.order; // Use the updated completed order from server
+                }
+                return order;
+            }));
+
+            // Show confetti animation
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000); // Stop confetti after 5 seconds
+
+            // Show toast notification
+            toast.success(`🎉 Transport ${data.transportId} completed successfully!`, {
+                description: `Delivered to ${data.order.transport.destinationLocation?.city || 'destination'}`,
+                duration: 8000,
+            });
+
+            // Show green completion marker for 15 seconds
+            const marker = transportMarkers.current.get(data.transportId);
+            if (marker) {
+                const markerEl = marker.getElement();
+                const innerDiv = markerEl.querySelector('div');
+                if (innerDiv) {
+                    // Change to green completion marker
+                    innerDiv.className = 'flex items-center justify-center w-10 h-10 bg-green-500 rounded-full text-white shadow-lg animate-pulse';
+                    innerDiv.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                    `;
+                    markerEl.title = `Transport ${data.transportId} - Completed`;
+
+                    // Remove the marker after 15 seconds
+                    setTimeout(() => {
+                        if (marker) {
+                            marker.remove();
+                            transportMarkers.current.delete(data.transportId);
+                            console.log(`Removed completed transport marker for ${data.transportId}`);
+                        }
+                    }, 15000);
+                }
+            }
+        });
+
         // Handle global simulation speed changes
         newConnection.on('GlobalSimulationSpeedChanged', (data: any) => {
             console.log('Global simulation speed changed:', data);
@@ -713,6 +779,17 @@ export function MapComponent() {
 
     return (
         <div className="h-full relative">
+            {/* Confetti Animation */}
+            {showConfetti && (
+                <Confetti
+                    width={windowDimensions.width}
+                    height={windowDimensions.height}
+                    recycle={false}
+                    numberOfPieces={200}
+                    gravity={0.3}
+                />
+            )}
+
             {/* Create Order Button - Top Right */}
             <Button
                 onClick={openNewOrderDialog}
