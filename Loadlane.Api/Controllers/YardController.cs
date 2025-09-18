@@ -18,8 +18,7 @@ public class YardController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetDockedVehicles([FromQuery] string warehouseId, CancellationToken cancellationToken)
     {
-        // Hole alle Fahrzeuge die sich aktuell im Yard befinden (also gedockt sind)
-        // Ein Fahrzeug ist gedockt, wenn es eine Docking-Instanz mit ArrivalTime aber ohne DepartureTime hat und Mappe es zu einer Liste von DockingDto
+
         var dockedVehicles = await _waypointService.GetDockedVehiclesAsync(warehouseId, cancellationToken);
         if (dockedVehicles == null || !dockedVehicles.Any())
         {
