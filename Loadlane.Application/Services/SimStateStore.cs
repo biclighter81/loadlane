@@ -5,13 +5,14 @@ using Microsoft.Extensions.Caching.Distributed;
 namespace Loadlane.Application.Services;
 
 /// <summary>
-/// Record representing the simulation state of a transport (position and route only)
+/// Record representing the simulation state of a transport (position, route, and waypoint progress)
 /// </summary>
 public sealed record TransportSimState(
     string TransportId,
     string RouteKey,
     double MetersAlong,
-    DateTimeOffset UpdatedUtc
+    DateTimeOffset UpdatedUtc,
+    int CurrentWaypointIndex = 0
 );
 
 /// <summary>
