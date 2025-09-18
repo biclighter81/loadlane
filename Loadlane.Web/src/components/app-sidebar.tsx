@@ -1,4 +1,4 @@
-import { Map, Building2, Truck, Package, FileText } from "lucide-react";
+import { Map, Building2, Truck } from "lucide-react";
 import {
     Sidebar,
     SidebarContent,
@@ -27,17 +27,7 @@ const items = [
         title: "Carriers",
         url: "/carriers",
         icon: Truck,
-    },
-    {
-        title: "Articles",
-        url: "/articles",
-        icon: Package,
-    },
-    {
-        title: "Orders",
-        url: "/orders",
-        icon: FileText,
-    },
+    }
 ];
 
 export function AppSidebar() {

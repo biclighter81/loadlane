@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { RegisterOrderDialog } from './forms/register-order-dialog';
 import { useOrders } from '../hooks/useOrder';
 import type { CreateOrderRequest, OrderResponse } from '../types/order';
+import { OrderFormDialog } from './forms/order-form-dialog';
 
 interface OrderSearchPanelProps {
     orders: OrderResponse[];
@@ -85,7 +85,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Package className="h-5 w-5" />
-                    Orders & Transports
+                    Transports
                 </CardTitle>
                 <Button variant="default" size="sm" onClick={() => openNewOrderDialog()}>
                     Create Order
@@ -94,7 +94,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search orders, transports, carriers..."
+                        placeholder="Search transports, carriers..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-8"
@@ -159,7 +159,8 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     </div>
                 </ScrollArea>
             </CardContent>
-            <RegisterOrderDialog
+
+            <OrderFormDialog
                 open={isRegisterDialogOpen}
                 onClose={() => setIsRegisterDialogOpen(false)}
                 onSubmit={handleCreateOrder}

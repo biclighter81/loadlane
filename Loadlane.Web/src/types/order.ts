@@ -129,9 +129,6 @@ export interface OrderFormData {
   articleWeight?: number;
   articleVolume?: number;
   carrierId?: string;
-  carrierName?: string;
-  carrierContactEmail?: string;
-  carrierContactPhone?: string;
   startLocation: Location;
   destinationLocation: Location;
   plannedDeparture?: Date;
