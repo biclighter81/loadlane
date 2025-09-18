@@ -82,13 +82,12 @@ export function MapComponent() {
     const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
-    console.log(orders)
 
     // Get warehouse data from API
     const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
-    
+
     // Get order functions for creating orders
-    const { createOrder, refetch, orders:orderStore } = useOrders();
+    const { createOrder, refetch, orders: orderStore } = useOrders();
 
     // Order creation handlers
     const openNewOrderDialog = () => {
@@ -98,7 +97,7 @@ export function MapComponent() {
     const handleCreateOrder = async (data: CreateOrderRequest) => {
         try {
             await createOrder(data);
-           
+
             // Refetch orders after creating a new one
             setIsRegisterDialogOpen(false);
             await refetch();
@@ -864,7 +863,7 @@ export function MapComponent() {
                         <div>
                             <Label className="text-sm font-medium">Carrier</Label>
                             <p className="text-sm mt-1 text-gray-600">
-                                {selectedTransportInfo.carrier || 'Unknown'}
+                                {selectedTransportInfo.carrier?.name || 'Unknown'}
                             </p>
                         </div>
 
