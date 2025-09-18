@@ -6,6 +6,8 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { RegisterOrderDialog } from './forms/register-order-dialog';
+import { useOrders } from '../hooks/useOrder';
+import type { CreateOrderRequest } from '../types/order';
 
 interface OrderSearchPanelProps {
     orders: any[];
@@ -18,10 +20,21 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
     const [filteredOrders, setFilteredOrders] = useState(orders);
     const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
 
+    const { createOrder } = useOrders();
+
     const openNewOrderDialog = () => {
-        // Logic to open a dialog or navigate to a new order creation page
-        alert('Open New Order Dialog');
-    }
+        setIsRegisterDialogOpen(true);
+    };
+
+    const handleCreateOrder = async (data: CreateOrderRequest) => {
+        try {
+            await createOrder(data);
+            // Optionally refresh the orders list or notify parent component
+        } catch (error) {
+            console.error('Failed to create order:', error);
+            // Handle error (could show a toast notification)
+        }
+    };
 
     // Filter orders based on search term
     useEffect(() => {
@@ -137,7 +150,11 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     </div>
                 </ScrollArea>
             </CardContent>
-            <RegisterOrderDialog open={isRegisterDialogOpen} onClose={() => setIsRegisterDialogOpen(false)} />
+            <RegisterOrderDialog
+                open={isRegisterDialogOpen}
+                onClose={() => setIsRegisterDialogOpen(false)}
+                onSubmit={handleCreateOrder}
+            />
         </Card>
     );
 }

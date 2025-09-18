@@ -1,28 +1,18 @@
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@radix-ui/react-dialog";
-import { DialogHeader } from "../ui/dialog";
+import { OrderFormDialog } from './order-form-dialog';
+import type { CreateOrderRequest } from '../../types/order';
 
 interface RegisterOrderDialogProps {
   open: boolean;
   onClose: () => void;
-//   onSubmit: (data: CreateOrderRequest | UpdateOrderRequest) => Promise<void>;
-//   order?: OrderResponse; // For editing existing orders
-//   mode: 'create' | 'edit';
+  onSubmit: (data: CreateOrderRequest) => Promise<void>;
 }
-export function RegisterOrderDialog({ open, onClose }: RegisterOrderDialogProps) {
-    if (!open) return null;
 
+export function RegisterOrderDialog({ open, onClose, onSubmit }: RegisterOrderDialogProps) {
     return (
-        <>
-            <Dialog open={open} onOpenChange={onClose}>
-               <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                <DialogTitle>Create Order</DialogTitle>
-                <DialogDescription>
-                    Fill in the details to create a new order.
-                </DialogDescription>
-                </DialogHeader>
-                </DialogContent>
-            </Dialog>
-        </>
+        <OrderFormDialog
+            open={open}
+            onClose={onClose}
+            onSubmit={onSubmit}
+        />
     );
 }
