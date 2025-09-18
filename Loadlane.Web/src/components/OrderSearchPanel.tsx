@@ -4,10 +4,7 @@ import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import { Button } from './ui/button';
-import { useOrders } from '../hooks/useOrder';
-import type { CreateOrderRequest, OrderResponse } from '../types/order';
-import { OrderFormDialog } from './forms/order-form-dialog';
+import type { OrderResponse } from '../types/order';
 
 interface OrderSearchPanelProps {
     orders: OrderResponse[];
@@ -18,23 +15,6 @@ interface OrderSearchPanelProps {
 export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: OrderSearchPanelProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredOrders, setFilteredOrders] = useState(orders);
-    const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-
-    const { createOrder } = useOrders();
-
-    const openNewOrderDialog = () => {
-        setIsRegisterDialogOpen(true);
-    };
-
-    const handleCreateOrder = async (data: CreateOrderRequest) => {
-        try {
-            await createOrder(data);
-            // Optionally refresh the orders list or notify parent component
-        } catch (error) {
-            console.error('Failed to create order:', error);
-            // Handle error (could show a toast notification)
-        }
-    };
 
     // Filter orders based on search term
     useEffect(() => {
@@ -87,9 +67,6 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     <Package className="h-5 w-5" />
                     Transports
                 </CardTitle>
-                <Button variant="default" size="sm" onClick={() => openNewOrderDialog()}>
-                    Create Order
-                </Button>
 
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -106,7 +83,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     <div className="p-4 pt-0 space-y-2">
                         {filteredOrders.length === 0 ? (
                             <div className="text-center text-gray-500 py-4">
-                                {searchTerm ? 'No orders found' : 'No orders available'}
+                                {searchTerm ? 'No Transports found' : 'No Transports available'}
                             </div>
                         ) : (
                             filteredOrders.map((order) => (
@@ -159,12 +136,6 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '' }: Orde
                     </div>
                 </ScrollArea>
             </CardContent>
-
-            <OrderFormDialog
-                open={isRegisterDialogOpen}
-                onClose={() => setIsRegisterDialogOpen(false)}
-                onSubmit={handleCreateOrder}
-            />
         </Card>
     );
 }

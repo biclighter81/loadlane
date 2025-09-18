@@ -214,9 +214,6 @@ function CarrierCard({ carrier, onEdit, onDelete, formatDate }: CarrierCardProps
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
-                    <Badge variant="outline" className="text-xs">
-                        Active
-                    </Badge>
                     <span className="text-xs text-muted-foreground">
                         Added {formatDate(carrier.createdUtc)}
                     </span>

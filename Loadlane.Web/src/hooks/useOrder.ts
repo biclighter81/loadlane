@@ -74,8 +74,8 @@ export function useOrders() {
     }
   };
 
-  const refetch = () => {
-    fetchOrders();
+  const refetch = async () => {
+    await fetchOrders();
   };
 
   useEffect(() => {

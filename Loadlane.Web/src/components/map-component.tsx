@@ -13,13 +13,16 @@ import {
     Eye,
     MapPin,
     Gauge,
+    Plus,
 } from 'lucide-react';
 import type { Warehouse } from '../types/map';
-import type { OrderResponse } from '../types/order';
+import type { OrderResponse, CreateOrderRequest } from '../types/order';
 import { useWarehouses } from '../hooks/useWarehouse';
+import { useOrders } from '../hooks/useOrder';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from './ui/sheet';
 import { OrderSearchPanel } from './OrderSearchPanel';
+import { OrderFormDialog } from './forms/order-form-dialog';
 
 // Mapbox access token
 mapboxgl.accessToken = 'pk.eyJ1IjoiYmljbGlnaHRlcjgxIiwiYSI6ImNtZm1tMzYzbjAyc3Yya3NqZ2Fqa3IzOWEifQ.3g3VkSpDLMAFVQCYJ9dtFQ';
@@ -76,12 +79,35 @@ export function MapComponent() {
     const waitingTransportOffsets = useRef<Map<string, { lng: number, lat: number }>>(new Map()); // Track offset positions for waiting transports
     const [visibleRoute, setVisibleRoute] = useState<string | null>(null); // Currently visible route
     const [simulationSpeed, setSimulationSpeed] = useState<number>(1); // Speed multiplier (1x, 2x, 5x, etc.)
+    const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
     const connection = useRef<HubConnection | null>(null);
     const navigate = useNavigate();
     console.log(orders)
 
     // Get warehouse data from API
     const { warehouses: warehouseData, loading: warehousesLoading } = useWarehouses();
+    
+    // Get order functions for creating orders
+    const { createOrder, refetch, orders:orderStore } = useOrders();
+
+    // Order creation handlers
+    const openNewOrderDialog = () => {
+        setIsRegisterDialogOpen(true);
+    };
+
+    const handleCreateOrder = async (data: CreateOrderRequest) => {
+        try {
+            await createOrder(data);
+           
+            // Refetch orders after creating a new one
+            setIsRegisterDialogOpen(false);
+            await refetch();
+            setOrders(orderStore)
+        } catch (error) {
+            console.error('Failed to create order:', error);
+            // Handle error (could show a toast notification)
+        }
+    };
 
     // Helper function to calculate offset position for waiting transports
     const getOffsetPosition = (baseLocation: { longitude: number, latitude: number }, transportId: string) => {
@@ -678,6 +704,17 @@ export function MapComponent() {
 
     return (
         <div className="h-full relative">
+            {/* Create Order Button - Top Right */}
+            <Button
+                onClick={openNewOrderDialog}
+                className="absolute top-4 right-4 z-10 shadow-lg"
+                variant="default"
+                size="sm"
+            >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Order
+            </Button>
+
             {/* Order Search Panel - Top Left */}
             <OrderSearchPanel
                 orders={orders}
@@ -778,7 +815,7 @@ export function MapComponent() {
 
             {/* Transport Info Card - Top Right */}
             {selectedTransportInfo && (
-                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-lg shadow-xl border p-4 h-[95%] overflow-y-auto">
+                <div className="absolute top-16 right-4 z-10 w-80 bg-white rounded-lg shadow-xl border p-4 h-[90%] overflow-y-auto">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <Truck className="h-5 w-5 text-blue-600" />
@@ -913,6 +950,13 @@ export function MapComponent() {
                     </div>
                 </div>
             </div>
+
+            {/* Order Form Dialog */}
+            <OrderFormDialog
+                open={isRegisterDialogOpen}
+                onClose={() => setIsRegisterDialogOpen(false)}
+                onSubmit={handleCreateOrder}
+            />
         </div >
     );
 }
