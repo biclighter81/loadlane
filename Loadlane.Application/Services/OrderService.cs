@@ -56,7 +56,11 @@ public sealed class OrderService : IOrderService
 
         // Get existing entities by ID (direct access, no validation)
         var article = await _articleRepository.GetByIdAsync(createOrderDto.ArticleId, cancellationToken);
+        if(article == null)
+            throw new InvalidOperationException($"Article with ID '{createOrderDto.ArticleId}' not found.");
         var carrier = await _carrierRepository.GetByIdAsync(createOrderDto.CarrierId, cancellationToken);
+        if(carrier == null)
+            throw new InvalidOperationException($"Carrier with ID '{createOrderDto.CarrierId}' not found.");
         var startLocation = await GetOrCreateLocationAsync(createOrderDto.StartLocation, cancellationToken);
         var destinationLocation = await GetOrCreateLocationAsync(createOrderDto.DestinationLocation, cancellationToken);
 
@@ -70,10 +74,16 @@ public sealed class OrderService : IOrderService
         // Generate dynamic transport ID
         var transportId = $"transp_{Guid.NewGuid().ToString().Substring(0, 8)}";
 
+        // Create dummy vehicle with Dortmund license plate
+        var dummyVehicle = new Vehicle($"DO-DM-{Random.Shared.Next(1000, 9999)}", $"DO-TL-{Random.Shared.Next(100, 999)}");
+
         // Create transport
         var transport = new Transport(transportId, order);
         transport.SetRoute(start, destination);
         transport.SetCarrier(carrier);
+
+        // Assign dummy vehicle to transport
+        transport.SetVehicle(dummyVehicle);
 
         // Add stopps if provided
         if (createOrderDto.Stopps?.Any() == true)

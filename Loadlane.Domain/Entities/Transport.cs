@@ -69,6 +69,11 @@ public sealed class Transport
         Carrier = carrier;
     }
 
+    public void SetVehicle(Vehicle vehicle)
+    {
+        Vehicle = vehicle;
+    }
+
     public void SetRoute(Start start, Destination destination)
     {
         Start = start;
