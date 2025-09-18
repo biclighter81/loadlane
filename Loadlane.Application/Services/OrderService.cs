@@ -238,7 +238,8 @@ public sealed class OrderService : IOrderService
                 order.Article.Name,
                 order.Article.Description,
                 order.Article.Weight,
-                order.Article.Volume),
+                order.Article.Volume,
+                order.Article.CreatedUtc),
             new TransportResponseDto(
                 transport.Id,
                 transport.TransportId,

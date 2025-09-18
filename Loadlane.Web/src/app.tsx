@@ -7,6 +7,8 @@ import { WarehouseListPage } from "./pages/warehouse-list";
 import { WarehouseDetailPage } from "./pages/warehouse-detail";
 import WarehouseYardPage from "./pages/warehouse-yard";
 import { CarrierListPage } from "./pages/carrier-list";
+import { ArticleListPage } from "./pages/article-list";
+import { OrderListPage } from "./pages/order-list";
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
               <Route path="/warehouses/:id" element={<WarehouseDetailPage />} />
               <Route path="/warehouses/:id/yard" element={<WarehouseYardPage />} />
               <Route path="/carriers" element={<CarrierListPage />} />
+              <Route path="/articles" element={<ArticleListPage />} />
+              <Route path="/orders" element={<OrderListPage />} />
               <Route path="*" element={<div>Page Not Found</div>} />
             </Routes>
           </div>
