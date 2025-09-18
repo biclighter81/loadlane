@@ -171,17 +171,18 @@ public class TripHub : Hub
             // Load or initialize simulation state
             var savedState = await _simStateStore.GetAsync(transportId);
             double startMetersAlong = 0.0;
+            int currentWaypointIndex = 0; // Initialize here first
 
             if (savedState != null && savedState.RouteKey == routeCacheKey)
             {
-                // Resume from saved state, accounting for time elapsed using current global speed
-                var currentSpeed = await _globalSimStore.GetCurrentSpeedAsync();
-                var elapsedTime = DateTimeOffset.UtcNow - savedState.UpdatedUtc;
-                var elapsedSeconds = elapsedTime.TotalSeconds;
-                startMetersAlong = savedState.MetersAlong + (currentSpeed * elapsedSeconds);
+                // Resume from the correct waypoint index
+                currentWaypointIndex = savedState.CurrentWaypointIndex;
 
-                // Clamp to route bounds
-                startMetersAlong = Math.Max(0, Math.Min(startMetersAlong, runner.TotalMeters));
+                // For continuing transports, start from the saved position without time advancement
+                // to prevent jumping ahead on the route
+                startMetersAlong = savedState.MetersAlong;
+
+                Console.WriteLine($"Resuming transport {transportId} from waypoint index {currentWaypointIndex} at exact saved position {startMetersAlong:F0}m");
             }
 
             // Broadcast route information once
@@ -193,8 +194,8 @@ public class TripHub : Hub
                 coordinates = route.Coords.Select(p => new[] { p.lng, p.lat }).ToArray()
             }, cancellationToken);
 
-            // Get transport waypoints for arrival detection
-            List<(double lat, double lng, bool isDestination)> waypoints = new();
+            // Get transport waypoints for route-based arrival detection
+            List<(double lat, double lng, bool isDestination, double routeProgress)> waypoints = new();
             try
             {
                 using var scope = _serviceScopeFactory.CreateScope();
@@ -204,17 +205,26 @@ public class TripHub : Hub
 
                 if (order?.Transport != null)
                 {
-                    // Add all stopps as waypoints
+                    var routeRunner = new PolylineRunner(route.Coords);
+
+                    // Pre-calculate route progress for each waypoint by finding closest point on route
                     foreach (var stopp in order.Transport.Stopps.OrderBy(s => s.SequenceNumber))
                     {
-                        waypoints.Add((stopp.Location.Latitude, stopp.Location.Longitude, false));
+                        var routeProgress = FindClosestPointOnRoute(routeRunner, stopp.Location.Latitude, stopp.Location.Longitude);
+                        waypoints.Add((stopp.Location.Latitude, stopp.Location.Longitude, false, routeProgress));
+                        Console.WriteLine($"Waypoint at ({stopp.Location.Latitude:F6}, {stopp.Location.Longitude:F6}) mapped to route progress {routeProgress:F1}m");
                     }
 
                     // Add destination as final waypoint
                     if (order.Transport.DestinationLocation != null)
                     {
-                        waypoints.Add((order.Transport.DestinationLocation.Latitude, order.Transport.DestinationLocation.Longitude, true));
+                        var routeProgress = FindClosestPointOnRoute(routeRunner, order.Transport.DestinationLocation.Latitude, order.Transport.DestinationLocation.Longitude);
+                        waypoints.Add((order.Transport.DestinationLocation.Latitude, order.Transport.DestinationLocation.Longitude, true, routeProgress));
+                        Console.WriteLine($"Destination at ({order.Transport.DestinationLocation.Latitude:F6}, {order.Transport.DestinationLocation.Longitude:F6}) mapped to route progress {routeProgress:F1}m");
                     }
+
+                    // Sort waypoints by route progress to ensure correct order
+                    waypoints = waypoints.OrderBy(w => w.routeProgress).ToList();
                 }
             }
             catch (Exception ex)
@@ -222,15 +232,13 @@ public class TripHub : Hub
                 Console.WriteLine($"Error loading waypoints for transport {transportId}: {ex.Message}");
             }
 
-            // Track visited waypoints
-            var visitedWaypoints = new HashSet<int>();
-            const double waypointToleranceMeters = 200; // 200m tolerance for waypoint detection
-
             // Time-based simulation loop with global speed
             const int tickMs = 100; // 10 Hz
             var stopwatch = Stopwatch.StartNew();
             double metersAlong = startMetersAlong;
             var lastPersistTime = DateTimeOffset.UtcNow;
+
+            Console.WriteLine($"Starting simulation for {transportId}: waypoints.Count={waypoints.Count}, currentWaypointIndex={currentWaypointIndex}, startMetersAlong={startMetersAlong:F0}m, totalRouteMeters={runner.TotalMeters:F0}m");
 
             while (metersAlong < runner.TotalMeters && !cancellationToken.IsCancellationRequested)
             {
@@ -250,26 +258,35 @@ public class TripHub : Hub
                 // Get current position
                 var position = runner.At(metersAlong);
 
-                // Check for waypoint arrivals
-                for (int i = 0; i < waypoints.Count; i++)
+                // Check for waypoint arrivals using route progress (much more reliable than distance checking)
+                if (currentWaypointIndex < waypoints.Count)
                 {
-                    if (visitedWaypoints.Contains(i)) continue; // Already visited this waypoint
+                    var nextWaypoint = waypoints[currentWaypointIndex];
 
-                    var waypoint = waypoints[i];
-                    var distance = CalculateDistance(position.lat, position.lng, waypoint.lat, waypoint.lng);
-
-                    if (distance <= waypointToleranceMeters)
+                    // Check if we've passed the waypoint's route position (with small tolerance for precision)
+                    if (metersAlong >= nextWaypoint.routeProgress - 50) // 50m tolerance before waypoint
                     {
-                        visitedWaypoints.Add(i);
+                        // Snap to exact waypoint location for accurate positioning
+                        var waypointPosition = runner.At(nextWaypoint.routeProgress);
 
-                        // Send arrival event for this waypoint
+                        // Send arrival event for this waypoint with snapped position
                         await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
                         {
                             transportId,
-                            isIntermediateWaypoint = !waypoint.isDestination,
-                            waypointIndex = i,
-                            lat = waypoint.lat,
-                            lng = waypoint.lng
+                            isIntermediateWaypoint = !nextWaypoint.isDestination,
+                            waypointIndex = currentWaypointIndex,
+                            lat = nextWaypoint.lat, // Use exact warehouse coordinates
+                            lng = nextWaypoint.lng  // Use exact warehouse coordinates
+                        }, cancellationToken);
+
+                        // Send updated position to show truck at exact waypoint
+                        await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("Position", new
+                        {
+                            transportId,
+                            lat = nextWaypoint.lat, // Snap to exact waypoint
+                            lng = nextWaypoint.lng,  // Snap to exact waypoint
+                            bearing = 0,
+                            speed = 0
                         }, cancellationToken);
 
                         // Handle arrival logic for this waypoint
@@ -277,16 +294,19 @@ public class TripHub : Hub
                         {
                             using var scope = _serviceScopeFactory.CreateScope();
                             var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-                            await orderService.HandleTransportArrivalAsync(transportId, waypoint.lat, waypoint.lng, cancellationToken);
-                            Console.WriteLine($"Transport {transportId} arrived at waypoint {i} ({waypoint.lat:F6}, {waypoint.lng:F6})");
+                            await orderService.HandleTransportArrivalAsync(transportId, nextWaypoint.lat, nextWaypoint.lng, cancellationToken);
+                            Console.WriteLine($"Transport {transportId} arrived at waypoint {currentWaypointIndex} ({nextWaypoint.lat:F6}, {nextWaypoint.lng:F6}) at route progress {nextWaypoint.routeProgress:F1}m");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Failed to handle transport {transportId} arrival at waypoint {i}: {ex.Message}");
+                            Console.WriteLine($"Failed to handle transport {transportId} arrival at waypoint {currentWaypointIndex}: {ex.Message}");
                         }
 
+                        // Move to next waypoint
+                        currentWaypointIndex++;
+
                         // If this is an intermediate waypoint and transport is now waiting, stop simulation
-                        if (!waypoint.isDestination)
+                        if (!nextWaypoint.isDestination)
                         {
                             try
                             {
@@ -297,7 +317,10 @@ public class TripHub : Hub
 
                                 if (currentOrder?.Transport.Status == TransportStatus.Waiting)
                                 {
-                                    Console.WriteLine($"Transport {transportId} is waiting at waypoint {i}, stopping simulation");
+                                    Console.WriteLine($"Transport {transportId} is waiting at waypoint {currentWaypointIndex - 1}, stopping simulation");
+                                    // Store exact arrival position for later display, including waypoint index
+                                    var state = new TransportSimState(transportId, routeCacheKey, nextWaypoint.routeProgress, DateTimeOffset.UtcNow, currentWaypointIndex);
+                                    await _simStateStore.SetAsync(state);
                                     // Clean up active simulation but KEEP the state in Redis for positioning
                                     _activeSimulations.TryRemove(transportId, out _);
                                     return;
@@ -323,7 +346,7 @@ public class TripHub : Hub
                 var now = DateTimeOffset.UtcNow;
                 if ((now - lastPersistTime).TotalSeconds >= 1.0)
                 {
-                    var state = new TransportSimState(transportId, routeCacheKey, metersAlong, now);
+                    var state = new TransportSimState(transportId, routeCacheKey, metersAlong, now, currentWaypointIndex);
                     await _simStateStore.SetAsync(state);
                     lastPersistTime = now;
                 }
@@ -337,16 +360,21 @@ public class TripHub : Hub
 
             // Only send final arrival event if we haven't already handled the final destination
             var finalDestinationIndex = waypoints.Count - 1;
-            if (finalDestinationIndex >= 0 && !visitedWaypoints.Contains(finalDestinationIndex))
+            Console.WriteLine($"Transport {transportId} completed route: finalDestinationIndex={finalDestinationIndex}, currentWaypointIndex={currentWaypointIndex}, metersAlong={metersAlong:F0}m");
+
+            if (finalDestinationIndex >= 0 && currentWaypointIndex <= finalDestinationIndex)
             {
-                // Final broadcast
+                // Use exact destination coordinates instead of route position
+                var finalDestination = waypoints[finalDestinationIndex];
+
+                // Final broadcast with exact coordinates
                 await _hubContext.Clients.Group($"transport:{transportId}").SendAsync("TransportArrived", new
                 {
                     transportId,
                     isIntermediateWaypoint = false,
                     waypointIndex = finalDestinationIndex,
-                    lat = finalPosition.lat,
-                    lng = finalPosition.lng
+                    lat = finalDestination.lat,  // Use exact destination coordinates
+                    lng = finalDestination.lng   // Use exact destination coordinates
                 }, cancellationToken);
 
                 // Handle arrival logic using a new scope
@@ -354,7 +382,7 @@ public class TripHub : Hub
                 {
                     using var scope = _serviceScopeFactory.CreateScope();
                     var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-                    await orderService.HandleTransportArrivalAsync(transportId, finalPosition.lat, finalPosition.lng, cancellationToken);
+                    await orderService.HandleTransportArrivalAsync(transportId, finalDestination.lat, finalDestination.lng, cancellationToken);
                     Console.WriteLine($"Transport {transportId} arrival handled successfully");
                 }
                 catch (Exception ex)
@@ -550,5 +578,32 @@ public class TripHub : Hub
         var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 
         return earthRadius * c;
+    }
+
+    /// <summary>
+    /// Finds the closest point on the route polyline to a given waypoint and returns the route progress in meters
+    /// </summary>
+    private static double FindClosestPointOnRoute(PolylineRunner runner, double waypointLat, double waypointLng)
+    {
+        var closestDistance = double.MaxValue;
+        var closestRouteProgress = 0.0;
+
+        // Sample the route at 50m intervals to find the closest point
+        const double sampleInterval = 50.0; // meters
+        var totalMeters = runner.TotalMeters;
+
+        for (double metersAlong = 0; metersAlong <= totalMeters; metersAlong += sampleInterval)
+        {
+            var position = runner.At(metersAlong);
+            var distance = CalculateDistance(position.lat, position.lng, waypointLat, waypointLng);
+
+            if (distance < closestDistance)
+            {
+                closestDistance = distance;
+                closestRouteProgress = metersAlong;
+            }
+        }
+
+        return closestRouteProgress;
     }
 }

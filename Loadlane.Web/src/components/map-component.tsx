@@ -283,7 +283,7 @@ export function MapComponent() {
             // Zoom to the transport's current position
             map.current.flyTo({
                 center: [currentPos.lng, currentPos.lat],
-                zoom: 10,
+                zoom: 15,
                 duration: 2000
             });
 

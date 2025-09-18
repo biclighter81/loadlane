@@ -7,7 +7,7 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { useWarehouses } from '../hooks/useWarehouse';
-import type {  OrderResponse } from '../types/order';
+import type { OrderResponse } from '../types/order';
 import type { WarehouseResponse } from '../types/warehouse';
 
 interface OrderSearchPanelProps {
@@ -146,7 +146,7 @@ export function OrderSearchPanel({ orders, onOrderSelect, className = '', getTra
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <ScrollArea className="h-full">
+                <ScrollArea>
                     <div className="p-4 pt-0 space-y-2">
                         {filteredOrders.length === 0 ? (
                             <div className="text-center text-gray-500 py-4">
