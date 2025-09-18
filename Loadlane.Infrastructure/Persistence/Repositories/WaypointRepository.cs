@@ -49,28 +49,28 @@ public sealed class WaypointRepository : IWaypointRepository
         }
 
         // Query 1: Stopps with direct TransportId foreign key
-        var stoppsQuery = BuildIncludes(_context.Stopps)
+        var stopps = await BuildIncludes(_context.Stopps)
             .Where(s => EF.Property<Guid?>(s, "TransportId") == transportId)
-            .Cast<Waypoint>();
-
-        // Query 2: Start waypoint by ID (more efficient than Contains)
-        var startsQuery = BuildIncludes(_context.Starts)
-            .Where(s => s.Id == transport.StartId)
-            .Cast<Waypoint>();
-
-        // Query 3: Destination waypoint by ID (more efficient than Contains)
-        var destinationsQuery = BuildIncludes(_context.Destinations)
-            .Where(d => d.Id == transport.DestinationId)
-            .Cast<Waypoint>();
-
-        // Execute union query and sort by creation time
-        var waypoints = await stoppsQuery
-            .Union(startsQuery)
-            .Union(destinationsQuery)
-            .OrderBy(w => w.CreatedUtc)
             .ToListAsync(cancellationToken);
 
-        return waypoints;
+        // Query 2: Start waypoint by ID (more efficient than Contains)
+        var starts = await BuildIncludes(_context.Starts)
+            .Where(s => s.Id == transport.StartId)
+            .ToListAsync(cancellationToken);
+
+        // Query 3: Destination waypoint by ID (more efficient than Contains)
+        var destinations = await BuildIncludes(_context.Destinations)
+            .Where(d => d.Id == transport.DestinationId)
+            .ToListAsync(cancellationToken);
+
+        // Combine results and convert to Waypoint base type
+        var waypoints = new List<Waypoint>();
+        waypoints.AddRange(stopps.Cast<Waypoint>());
+        waypoints.AddRange(starts.Cast<Waypoint>());
+        waypoints.AddRange(destinations.Cast<Waypoint>());
+
+        // Sort by creation time and return
+        return waypoints.OrderBy(w => w.CreatedUtc).ToList();
     }
 
     public async Task<Waypoint?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
