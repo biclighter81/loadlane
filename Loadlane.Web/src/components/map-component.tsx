@@ -104,6 +104,7 @@ export function MapComponent() {
             console.log('Created order with transport:', transport);
             setOrders((prevOrders) => [...prevOrders, transport]);
             // Refetch orders after creating a new one
+            window.location.reload();
             setIsRegisterDialogOpen(false);
         
         } catch (error) {
