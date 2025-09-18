@@ -10,6 +10,8 @@ public interface IOrderService
     Task<OrderResponseDto> CreateOrderAsync(CreateOrderDto createOrderDto, CancellationToken cancellationToken = default);
     Task<OrderResponseDto?> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<List<OrderResponseDto>> GetAllOrdersAsync(CancellationToken cancellationToken = default);
+    Task<List<OrderResponseDto>> GetAllOrdersAsync(bool? includeCompleted, CancellationToken cancellationToken = default);
+    Task UpdateTransportStatusAsync(string transportId, Domain.Enums.TransportStatus status, CancellationToken cancellationToken = default);
 }
 
 public sealed class OrderService : IOrderService
@@ -122,6 +124,52 @@ public sealed class OrderService : IOrderService
         return orders.Select(MapToResponseDto).ToList();
     }
 
+    public async Task<List<OrderResponseDto>> GetAllOrdersAsync(bool? includeCompleted, CancellationToken cancellationToken = default)
+    {
+        var orders = await _orderRepository.GetAllAsync(cancellationToken);
+
+        if (includeCompleted == false)
+        {
+            // Filter out completed orders (check if any transport is completed)
+            orders = orders.Where(o => !o.Transports.Any(t => t.Status == Domain.Enums.TransportStatus.Completed)).ToList();
+        }
+
+        return orders.Select(MapToResponseDto).ToList();
+    }
+
+    public async Task UpdateTransportStatusAsync(string transportId, Domain.Enums.TransportStatus status, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(transportId))
+            throw new ArgumentException("TransportId cannot be null or empty", nameof(transportId));
+
+        // Find order by scanning through all orders and their transports
+        var orders = await _orderRepository.GetAllAsync(cancellationToken);
+        var order = orders.FirstOrDefault(o => o.Transports.Any(t => t.TransportId == transportId));
+
+        if (order == null)
+            throw new InvalidOperationException($"Order with transportId '{transportId}' not found");
+
+        var transport = order.Transports.First(t => t.TransportId == transportId);
+
+        // Use the appropriate method based on the target status
+        switch (status)
+        {
+            case Domain.Enums.TransportStatus.InProgress:
+                transport.StartTransport();
+                break;
+            case Domain.Enums.TransportStatus.Completed:
+                transport.Complete();
+                break;
+            case Domain.Enums.TransportStatus.Cancelled:
+                transport.Cancel();
+                break;
+            default:
+                throw new InvalidOperationException($"Cannot update transport to status '{status}' using this method");
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task<Article> GetOrCreateArticleAsync(ArticleDto articleDto, CancellationToken cancellationToken)
     {
         var existingArticle = await _articleRepository.GetByNameAsync(articleDto.Name, cancellationToken);
@@ -190,7 +238,8 @@ public sealed class OrderService : IOrderService
                 order.Article.Name,
                 order.Article.Description,
                 order.Article.Weight,
-                order.Article.Volume),
+                order.Article.Volume,
+                order.Article.CreatedUtc),
             new TransportResponseDto(
                 transport.Id,
                 transport.TransportId,

@@ -1,12 +1,11 @@
 import type {
-  CarrierResponse,
-  CreateCarrierRequest,
-  UpdateCarrierRequest
-} from '../types/carrier';
+  OrderResponse,
+  CreateOrderRequest
+} from '../types/order';
 
 const API_BASE_URL = 'http://localhost:5119/api';
 
-class CarrierService {
+class OrderService {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
@@ -33,30 +32,23 @@ class CarrierService {
     return this.handleResponse<T>(response);
   }
 
-  async getAllCarriers(): Promise<CarrierResponse[]> {
-    return this.makeApiCall<CarrierResponse[]>('/carriers');
+  async getAllOrders(): Promise<OrderResponse[]> {
+    return this.makeApiCall<OrderResponse[]>('/orders');
   }
 
-  async getCarrierById(id: string): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>(`/carriers/${id}`);
+  async getOrderById(id: string): Promise<OrderResponse> {
+    return this.makeApiCall<OrderResponse>(`/orders/${id}`);
   }
 
-  async createCarrier(carrier: CreateCarrierRequest): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>('/carriers', {
+  async createOrder(order: CreateOrderRequest): Promise<OrderResponse> {
+    return this.makeApiCall<OrderResponse>('/orders', {
       method: 'POST',
-      body: JSON.stringify(carrier),
+      body: JSON.stringify(order),
     });
   }
 
-  async updateCarrier(id: string, carrier: UpdateCarrierRequest): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>(`/carriers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(carrier),
-    });
-  }
-
-  async deleteCarrier(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/carriers/${id}`, {
+  async deleteOrder(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -64,6 +56,16 @@ class CarrierService {
     });
     return this.handleDeleteResponse(response);
   }
+
+  // Additional method for filtering orders if needed
+  async getOrdersByStatus(status: string): Promise<OrderResponse[]> {
+    return this.makeApiCall<OrderResponse[]>(`/orders?status=${encodeURIComponent(status)}`);
+  }
+
+  // Method for searching orders
+  async searchOrders(query: string): Promise<OrderResponse[]> {
+    return this.makeApiCall<OrderResponse[]>(`/orders/search?q=${encodeURIComponent(query)}`);
+  }
 }
 
-export const carrierService = new CarrierService();
+export const orderService = new OrderService();

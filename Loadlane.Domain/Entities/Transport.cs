@@ -100,8 +100,8 @@ public sealed class Transport
 
     public void Complete()
     {
-        if (Status != TransportStatus.InProgress)
-            throw new InvalidOperationException("Transport must be in progress to complete");
+        // if (Status != TransportStatus.InProgress)
+        //     throw new InvalidOperationException("Transport must be in progress to complete");
 
         Status = TransportStatus.Completed;
     }

@@ -12,13 +12,6 @@ public sealed record OrderResponseDto(
     DateTime CreatedUtc
 );
 
-public sealed record ArticleResponseDto(
-    Guid Id,
-    string Name,
-    string? Description,
-    decimal? Weight,
-    decimal? Volume
-);
 
 public sealed record TransportResponseDto(
     Guid Id,

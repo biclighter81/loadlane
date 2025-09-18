@@ -68,6 +68,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 builder.Services.AddScoped<ICarrierService, CarrierService>();
 builder.Services.AddScoped<IWaypointService, WaypointService>();
+builder.Services.AddScoped<ArticleService>();
 
 // Add Application Services
 builder.Services.AddScoped<DirectionsService>();

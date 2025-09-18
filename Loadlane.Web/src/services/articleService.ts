@@ -1,12 +1,12 @@
 import type {
-  CarrierResponse,
-  CreateCarrierRequest,
-  UpdateCarrierRequest
-} from '../types/carrier';
+  ArticleResponse,
+  CreateArticleRequest,
+  UpdateArticleRequest
+} from '../types/article';
 
 const API_BASE_URL = 'http://localhost:5119/api';
 
-class CarrierService {
+class ArticleService {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
@@ -33,30 +33,30 @@ class CarrierService {
     return this.handleResponse<T>(response);
   }
 
-  async getAllCarriers(): Promise<CarrierResponse[]> {
-    return this.makeApiCall<CarrierResponse[]>('/carriers');
+  async getAllArticles(): Promise<ArticleResponse[]> {
+    return this.makeApiCall<ArticleResponse[]>('/articles');
   }
 
-  async getCarrierById(id: string): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>(`/carriers/${id}`);
+  async getArticleById(id: string): Promise<ArticleResponse> {
+    return this.makeApiCall<ArticleResponse>(`/articles/${id}`);
   }
 
-  async createCarrier(carrier: CreateCarrierRequest): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>('/carriers', {
+  async createArticle(article: CreateArticleRequest): Promise<ArticleResponse> {
+    return this.makeApiCall<ArticleResponse>('/articles', {
       method: 'POST',
-      body: JSON.stringify(carrier),
+      body: JSON.stringify(article),
     });
   }
 
-  async updateCarrier(id: string, carrier: UpdateCarrierRequest): Promise<CarrierResponse> {
-    return this.makeApiCall<CarrierResponse>(`/carriers/${id}`, {
+  async updateArticle(id: string, article: UpdateArticleRequest): Promise<ArticleResponse> {
+    return this.makeApiCall<ArticleResponse>(`/articles/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(carrier),
+      body: JSON.stringify(article),
     });
   }
 
-  async deleteCarrier(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/carriers/${id}`, {
+  async deleteArticle(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/articles/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -66,4 +66,4 @@ class CarrierService {
   }
 }
 
-export const carrierService = new CarrierService();
+export const articleService = new ArticleService();
