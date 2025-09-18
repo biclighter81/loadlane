@@ -222,30 +222,30 @@ export default function WarehouseYardPage() {
                 warehouseText={warehouse.name}
                 onDockStatusChange={async (dockId, newStatus) => {
                     console.log(`Dock ${dockId} status changed to: ${newStatus}`);
-                    if(transportId && waypointId) {
-                    setDocks(prevDocks => 
-                        prevDocks.map(dock => 
-                            dock.number === dockId ? { ...dock, status: newStatus } : dock
-                        )
-                    );
-                    
-                    // API-Anfrage senden, um Gate-Status zu aktualisieren
-                    try {
-                        await yardService.updateGateStatus(waypointId, dockId, transportId);
-                        // push Vehicle to trucks list from foundorder.transport.vehicle
-                        if (order && order.transport.vehicle) {
-                            const newTruck: TruckData = {
-                                id: order.transport.vehicle.id,
-                                text: order.transport.carrier?.name || 'Unbekannt',
-                                numberPlate: order.transport.vehicle.licencePlate,
-                                targetDock: dockId
-                            };
-                            setTrucks(prev => [...prev, newTruck]);
+                    if (transportId && waypointId) {
+                        setDocks(prevDocks =>
+                            prevDocks.map(dock =>
+                                dock.number === dockId ? { ...dock, status: newStatus } : dock
+                            )
+                        );
+
+                        // API-Anfrage senden, um Gate-Status zu aktualisieren
+                        try {
+                            await yardService.updateGateStatus(waypointId, dockId, transportId);
+                            // push Vehicle to trucks list from foundorder.transport.vehicle
+                            if (order && order.transport.vehicle) {
+                                const newTruck: TruckData = {
+                                    id: order.transport.vehicle.id,
+                                    text: order.transport.carrier?.name || 'Unbekannt',
+                                    numberPlate: order.transport.vehicle.licencePlate,
+                                    targetDock: dockId
+                                };
+                                setTrucks(prev => [...prev, newTruck]);
+                            }
+                        } catch (error) {
+                            console.error('Fehler beim Aktualisieren des Gate-Status:', error);
                         }
-                    } catch (error) {
-                        console.error('Fehler beim Aktualisieren des Gate-Status:', error);
                     }
-                     }
                 }}
                 onTruckClick={async (truckData, dockId) => {
                     console.log(`Truck ${truckData.id} clicked at dock ${dockId} - starting removal animation`);
@@ -255,7 +255,7 @@ export default function WarehouseYardPage() {
                     // API-Anfrage senden, um den LKW offiziell zu entfernen
                     if (waypointId) {
                         try {
-                            await yardService.removeDockedVehicle(waypointId, truckData.id);
+                            await yardService.removeDockedVehicle(waypointId, truckData.id, transportId || '');
                         } catch (error) {
                             console.error('Fehler beim Entfernen des Fahrzeugs:', error);
                             // Bei Fehler den LKW wieder aus der Removal-Liste entfernen
